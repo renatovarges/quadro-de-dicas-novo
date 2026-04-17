@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.log
+.tmp/
+.venv/
+.streamlit/
+.pytest_cache/
+*.tmp
+*.temp
+SITES DE AJUDA/
+tcc_fotos_jogadores.backup_*.html
+MODELO *.png

@@ -1,0 +1,1 @@
+-r nova_plataforma_tcc/requirements.txt
