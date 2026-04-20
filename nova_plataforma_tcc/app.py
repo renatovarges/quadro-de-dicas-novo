@@ -17,6 +17,7 @@ from src.utils import display_profile_label, position_storage_key
 
 ROUNDS_FILE = ROOT_PROJECT_DIR / "RODADAS_BRASILEIRAO_2026.txt"
 PHOTOS_FILE = ROOT_PROJECT_DIR / "tcc_fotos_jogadores.html"
+EXPORT_POSITION_ORDER = list(POSITION_CONFIG.keys())
 
 st.set_page_config(page_title="Nova Plataforma TCC", page_icon="⚽", layout="wide")
 
@@ -84,6 +85,7 @@ def ensure_state():
         st.session_state.setdefault(f"last_market_{position_key}", "")
         st.session_state.setdefault(f"name_{position_key}", "")
         st.session_state.setdefault(f"full_name_{position_key}", "")
+        st.session_state.setdefault(f"athlete_id_{position_key}", None)
         st.session_state.setdefault(f"team_{position_key}", "")
         st.session_state.setdefault(f"price_{position_key}", 0.0)
         st.session_state.setdefault(f"mpv_{position_key}", 0.0)
@@ -105,6 +107,7 @@ def populate_form_from_market(position_name: str, selected_row: dict | None):
         return
     st.session_state[f"name_{position_name}"] = selected_row["nome"]
     st.session_state[f"full_name_{position_name}"] = selected_row.get("nome_completo", "") or selected_row["nome"]
+    st.session_state[f"athlete_id_{position_name}"] = selected_row.get("atleta_id")
     st.session_state[f"team_{position_name}"] = selected_row["time"]
     st.session_state[f"price_{position_name}"] = float(selected_row["preco"])
     st.session_state[f"mpv_{position_name}"] = float(selected_row.get("minimo_valorizar") or 0.0)
@@ -149,6 +152,44 @@ def build_position_preview_html(
         cards=cards,
         include_client_export=False,
     )
+
+
+def build_indications_export_df(target_round: int) -> pd.DataFrame:
+    rows: list[dict] = []
+    global_order = 1
+
+    for position_name in EXPORT_POSITION_ORDER:
+        players = st.session_state.get(position_storage_key(position_name), [])
+        for position_order, player in enumerate(players, start=1):
+            rows.append(
+                {
+                    "rodada": int(target_round),
+                    "posicao": position_name,
+                    "ordem_na_posicao": position_order,
+                    "ordem_global": global_order,
+                    "nome": player.get("name", ""),
+                    "nome_completo": player.get("full_name") or player.get("name", ""),
+                    "clube": player.get("team", ""),
+                    "atleta_id": player.get("athlete_id", ""),
+                    "unanimidade": bool(player.get("badges", {}).get("unanimidade", False)),
+                    "bom_capitao": bool(player.get("badges", {}).get("bom_capitao", False)),
+                    "bom_rl": bool(player.get("badges", {}).get("bom_rl", False)),
+                    "confianca": player.get("confidence", ""),
+                    "perfis": "|".join(player.get("profiles", [])),
+                    "preco": float(player.get("price", 0.0)),
+                    "mpv": float(player.get("mpv", 0.0)),
+                }
+            )
+            global_order += 1
+
+    return pd.DataFrame(rows)
+
+
+def build_indications_csv_bytes(target_round: int) -> bytes | None:
+    export_df = build_indications_export_df(target_round)
+    if export_df.empty:
+        return None
+    return export_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
 
 
 ensure_state()
@@ -197,6 +238,7 @@ datasets = get_excel_data(
     uploaded_excel.name if uploaded_excel else None,
 )
 analyzer = ScoutAnalyzer(datasets["POR_JOGO"], rounds_data, photo_index)
+indications_csv_bytes = build_indications_csv_bytes(target_round)
 
 market_df = st.session_state["market_data"]
 cards_state_key = position_storage_key(position_key)
@@ -207,6 +249,7 @@ if st.session_state.get(f"pending_reset_{position_key}", False):
     st.session_state[f"last_market_{position_key}"] = ""
     st.session_state[f"name_{position_key}"] = ""
     st.session_state[f"full_name_{position_key}"] = ""
+    st.session_state[f"athlete_id_{position_key}"] = None
     st.session_state[f"team_{position_key}"] = ""
     st.session_state[f"price_{position_key}"] = 0.0
     st.session_state[f"mpv_{position_key}"] = 0.0
@@ -288,6 +331,7 @@ with tab_editor:
                     {
                         "name": player_name.strip(),
                         "full_name": st.session_state.get(f"full_name_{position_key}", "").strip(),
+                        "athlete_id": st.session_state.get(f"athlete_id_{position_key}"),
                         "team": team_name.strip(),
                         "price": float(player_price),
                         "mpv": float(player_mpv),
@@ -323,6 +367,16 @@ with tab_editor:
             if c4.button("Excluir", key=f"del_{position_key}_{idx}"):
                 del st.session_state[cards_state_key][idx]
                 st.rerun()
+
+    if indications_csv_bytes:
+        st.download_button(
+            "Baixar CSV das indicacoes",
+            data=indications_csv_bytes,
+            file_name=f"indicacoes_rodada_{target_round}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+        st.caption("O CSV consolida todas as indicacoes montadas no editor e preserva a ordem manual de cada posicao.")
 
 with tab_preview:
     st.subheader(f"Prévia de {position_key}")
@@ -453,6 +507,14 @@ with tab_preview:
                 data=st.session_state["preview_pdf_bytes"],
                 file_name=st.session_state["preview_pdf_name"],
                 mime="application/pdf",
+                use_container_width=True,
+            )
+        if indications_csv_bytes:
+            st.download_button(
+                "Baixar CSV das indicacoes",
+                data=indications_csv_bytes,
+                file_name=f"indicacoes_rodada_{target_round}.csv",
+                mime="text/csv",
                 use_container_width=True,
             )
 
