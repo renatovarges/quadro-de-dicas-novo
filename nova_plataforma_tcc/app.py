@@ -374,6 +374,7 @@ with tab_editor:
             data=indications_csv_bytes,
             file_name=f"indicacoes_rodada_{target_round}.csv",
             mime="text/csv",
+            key=f"download_csv_editor_{target_round}",
             use_container_width=True,
         )
         st.caption("O CSV consolida todas as indicacoes montadas no editor e preserva a ordem manual de cada posicao.")
@@ -442,6 +443,7 @@ with tab_preview:
                     data=st.session_state["preview_png_bytes"],
                     file_name=st.session_state["preview_png_name"],
                     mime="image/png",
+                    key=f"download_png_ready_{target_round}_{position_key}",
                     use_container_width=True,
                 )
         with export_col3:
@@ -507,6 +509,7 @@ with tab_preview:
                 data=st.session_state["preview_pdf_bytes"],
                 file_name=st.session_state["preview_pdf_name"],
                 mime="application/pdf",
+                key=f"download_pdf_ready_{target_round}",
                 use_container_width=True,
             )
         if indications_csv_bytes:
@@ -515,6 +518,7 @@ with tab_preview:
                 data=indications_csv_bytes,
                 file_name=f"indicacoes_rodada_{target_round}.csv",
                 mime="text/csv",
+                key=f"download_csv_preview_{target_round}",
                 use_container_width=True,
             )
 
