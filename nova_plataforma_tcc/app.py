@@ -12,7 +12,7 @@ from src.config import DEFAULT_EXCEL_FILE, POSITION_CONFIG, ROOT_PROJECT_DIR
 from src.data_sources import build_photo_index, fetch_market_snapshot, load_excel_data, load_rounds_file
 from src.exporter import combine_pngs_to_pdf_bytes, export_html_to_png_bytes
 from src.render import build_preview_html
-from src.utils import display_profile_label, position_storage_key
+from src.utils import position_storage_key
 
 
 ROUNDS_FILE = ROOT_PROJECT_DIR / "RODADAS_BRASILEIRAO_2026.txt"
@@ -93,9 +93,8 @@ def ensure_state():
         st.session_state.setdefault(f"una_{position_key}", False)
         st.session_state.setdefault(f"cap_{position_key}", False)
         st.session_state.setdefault(f"rl_{position_key}", False)
+        st.session_state.setdefault(f"fora20_{position_key}", False)
         st.session_state.setdefault(f"pending_reset_{position_key}", False)
-        for profile_name in POSITION_CONFIG[position_key]["profiles"]:
-            st.session_state.setdefault(f"profile_{position_key}_{profile_name}", False)
 
 
 def add_player_to_position(position_name: str, payload: dict):
@@ -174,6 +173,7 @@ def build_indications_export_df(target_round: int) -> pd.DataFrame:
                     "unanimidade": bool(player.get("badges", {}).get("unanimidade", False)),
                     "bom_capitao": bool(player.get("badges", {}).get("bom_capitao", False)),
                     "bom_rl": bool(player.get("badges", {}).get("bom_rl", False)),
+                    "fora_dos_20": bool(player.get("badges", {}).get("fora_dos_20", False)),
                     "confianca": player.get("confidence", ""),
                     "perfis": "|".join(player.get("profiles", [])),
                     "preco": float(player.get("price", 0.0)),
@@ -257,8 +257,7 @@ if st.session_state.get(f"pending_reset_{position_key}", False):
     st.session_state[f"una_{position_key}"] = False
     st.session_state[f"cap_{position_key}"] = False
     st.session_state[f"rl_{position_key}"] = False
-    for profile_name in POSITION_CONFIG[position_key]["profiles"]:
-        st.session_state[f"profile_{position_key}_{profile_name}"] = False
+    st.session_state[f"fora20_{position_key}"] = False
     st.session_state[f"pending_reset_{position_key}"] = False
 
 tab_editor, tab_preview = st.tabs(["Editor", "Visualização"])
@@ -311,16 +310,11 @@ with tab_editor:
         confidence = c5.select_slider("Confiança", options=["A", "B", "C", "D"], key=f"conf_{position_key}")
 
         st.caption("Destaques")
-        b1, b2, b3 = st.columns(3)
+        b1, b2, b3, b4 = st.columns(4)
         badge_unanimity = b1.checkbox("Unanimidade", key=f"una_{position_key}")
         badge_captain = b2.checkbox("Bom Capitão", key=f"cap_{position_key}")
         badge_rl = b3.checkbox("Bom RL", key=f"rl_{position_key}")
-
-        st.caption("Perfis")
-        selected_profiles = []
-        for col, profile_name in zip(st.columns(len(position_cfg["profiles"])), position_cfg["profiles"]):
-            if col.checkbox(display_profile_label(profile_name).title(), key=f"profile_{position_key}_{profile_name}"):
-                selected_profiles.append(profile_name)
+        badge_fora20 = b4.checkbox("Fora dos 20+", key=f"fora20_{position_key}")
 
         if st.button("Adicionar à lista", use_container_width=True, type="primary", key=f"add_{position_key}"):
             if not player_name.strip() or not team_name.strip():
@@ -336,11 +330,12 @@ with tab_editor:
                         "price": float(player_price),
                         "mpv": float(player_mpv),
                         "confidence": confidence,
-                        "profiles": selected_profiles,
+                        "profiles": [],
                         "badges": {
                             "unanimidade": badge_unanimity,
                             "bom_capitao": badge_captain,
                             "bom_rl": badge_rl,
+                            "fora_dos_20": badge_fora20,
                         },
                     },
                 )
@@ -354,9 +349,19 @@ with tab_editor:
     else:
         for idx, player in enumerate(current_cards):
             c1, c2, c3, c4 = st.columns([6, 1, 1, 1])
-            profiles_label = ", ".join(display_profile_label(profile) for profile in player["profiles"]) if player["profiles"] else "Sem perfil"
+            badges = player.get("badges", {})
+            badge_labels = []
+            if badges.get("unanimidade"):
+                badge_labels.append("Unanimidade")
+            if badges.get("bom_capitao"):
+                badge_labels.append("Capitão")
+            if badges.get("bom_rl"):
+                badge_labels.append("RL")
+            if badges.get("fora_dos_20"):
+                badge_labels.append("Fora dos 20+")
+            badges_text = (" · " + " · ".join(badge_labels)) if badge_labels else ""
             c1.markdown(
-                f'**{player["name"]}** · {player["team"]} · C$ {player["price"]:.2f} · MPV {player["mpv"]:.2f} · Conf {player["confidence"]} · {profiles_label}'
+                f'**{player["name"]}** · {player["team"]} · C$ {player["price"]:.2f} · MPV {player["mpv"]:.2f} · Conf {player["confidence"]}{badges_text}'
             )
             if c2.button("↑", key=f"up_{position_key}_{idx}"):
                 move_player(position_key, idx, -1)
