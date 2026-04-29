@@ -11,7 +11,7 @@ SCOUT_FULL_LABELS = {
     "M.BÁS": "MÉDIA BÁSICA",
     "G+A": "GOL + ASSISTÊNCIA",
     "CHT AG": "CHUTE A GOL",
-    "CHT": "FINALIZAÇÕES TOTAIS",
+    "CHT": "FINALIZAÇÕES",
     "M.PTS": "MÉDIA DE PONTOS",
     "VIT": "VITÓRIAS",
     "5PTS+": "FEZ 5PTS OU +",
