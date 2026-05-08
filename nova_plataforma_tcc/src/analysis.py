@@ -202,6 +202,20 @@ class ScoutAnalyzer:
         valid = valid.sort_values("DATA")
         return str(valid.iloc[-1]["POS_REAL_STR"])
 
+    def get_match_score(self, match_id: str, team_norm: str) -> tuple[int, int] | None:
+        match_rows = self.df_games[self.df_games["MATCH_ID"] == match_id]
+        if match_rows.empty:
+            return None
+
+        team_mask = match_rows["TIME_NORM"] == team_norm
+        opponent_mask = ~team_mask
+        if not team_mask.any() or not opponent_mask.any():
+            return None
+
+        team_goals = int(match_rows.loc[team_mask, "G"].sum() + match_rows.loc[opponent_mask, "GC"].sum())
+        opponent_goals = int(match_rows.loc[opponent_mask, "G"].sum() + match_rows.loc[team_mask, "GC"].sum())
+        return team_goals, opponent_goals
+
     def count_wins(self, df: pd.DataFrame, position_key: str) -> int:
         if df.empty or POSITION_CONFIG[position_key]["role"] != "tecnico":
             return 0
@@ -213,18 +227,12 @@ class ScoutAnalyzer:
                 continue
 
             team_norm = team_rows["TIME_NORM"].iloc[0]
-            team_pts = float(team_rows["PTS"].max())
-
-            opponent_rows = self.df_games[
-                (self.df_games["MATCH_ID"] == match_id)
-                & (self.df_games["TIME_NORM"] != team_norm)
-            ].copy()
-            opponent_rows = self.filter_position_rows(opponent_rows, position_key)
-            if opponent_rows.empty:
+            score = self.get_match_score(match_id, team_norm)
+            if score is None:
                 continue
 
-            opponent_pts = float(opponent_rows["PTS"].max())
-            if team_pts > opponent_pts:
+            team_goals, opponent_goals = score
+            if team_goals > opponent_goals:
                 wins += 1
 
         return wins
@@ -240,18 +248,12 @@ class ScoutAnalyzer:
                 continue
 
             team_norm = team_rows["TIME_NORM"].iloc[0]
-            team_pts = float(team_rows["PTS"].max())
-
-            opponent_rows = self.df_games[
-                (self.df_games["MATCH_ID"] == match_id)
-                & (self.df_games["TIME_NORM"] != team_norm)
-            ].copy()
-            opponent_rows = self.filter_position_rows(opponent_rows, position_key)
-            if opponent_rows.empty:
+            score = self.get_match_score(match_id, team_norm)
+            if score is None:
                 continue
 
-            opponent_pts = float(opponent_rows["PTS"].max())
-            if team_pts < opponent_pts:
+            team_goals, opponent_goals = score
+            if team_goals < opponent_goals:
                 losses += 1
 
         return losses
@@ -285,9 +287,9 @@ class ScoutAnalyzer:
         game_count = int(df["MATCH_ID"].nunique())
         basic = round(float(df["BASICA"].mean()), 2)
         pg = int((df["G"] + df["A"]).sum())
-        shots = int((df["FT"] + df["FF"]).sum())
+        shots = int((df["FF"] + df["FT"]).sum())
         shots_on_target = int((df["FD"] + df["G"]).sum())
-        total_shots = int((df["FF"] + df["FD"] + df["FT"] + df["G"]).sum())
+        total_shots = shots
         avg_points = round(float(df["PTS"].mean()), 2)
         wins = self.count_wins(df, position_key)
         plus_five = self.count_threshold_games(df, 5.0)

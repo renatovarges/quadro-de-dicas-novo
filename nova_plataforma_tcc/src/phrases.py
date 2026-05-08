@@ -32,6 +32,10 @@ def format_count(value: int, singular: str, plural: str | None = None) -> str:
     return f"{value} {pluralize(value, singular, plural)}"
 
 
+def format_ff_ft_count(value: int) -> str:
+    return f"{value} FF + FT"
+
+
 def format_points(value: float) -> str:
     return f"{value:.2f} pontos"
 
@@ -147,10 +151,10 @@ def build_phrase(
 
     role_label = "meias" if role == "meia" else "atacantes"
     return (
-        f"{intro} Conquistou {format_count(own_stats['shots'], 'finalização', 'finalizações')} e "
+        f"{intro} Conquistou {format_ff_ft_count(own_stats['shots'])} e "
         f"{format_count(own_stats['shots_on_target'], 'chute a gol', 'chutes a gol')} "
         f"{format_recent_window(games, player_mando, filter_mode)}. "
-        f"Enfrenta {opponent_label}, que cedeu {format_count(opp_stats['shots'], 'finalização', 'finalizações')}, "
+        f"Enfrenta {opponent_label}, que cedeu {format_ff_ft_count(opp_stats['shots'])}, "
         f"{format_count(opp_stats['shots_on_target'], 'chute a gol', 'chutes a gol')} e "
         f"{format_participations(opp_stats['pg'])} para {role_label} "
         f"{format_recent_window(opponent_games, rival_mando, filter_mode, possessive=True)}."
