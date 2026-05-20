@@ -185,6 +185,34 @@ def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values(["posicao_norm", "nome"]).reset_index(drop=True)
 
 
+def extract_mpv_map(payload) -> dict[int, float]:
+    mpv_map: dict[int, float] = {}
+
+    if isinstance(payload, dict) and "atletas" in payload:
+        for athlete in payload["atletas"]:
+            if "atleta_id" in athlete:
+                mpv_map[int(athlete["atleta_id"])] = float(athlete.get("minimo_para_valorizar", 0.0))
+        if mpv_map:
+            return mpv_map
+
+    if isinstance(payload, dict):
+        for athlete_id, values in payload.items():
+            if isinstance(values, dict) and "minimo_para_valorizar" in values:
+                try:
+                    mpv_map[int(athlete_id)] = float(values.get("minimo_para_valorizar", 0.0))
+                except (TypeError, ValueError):
+                    continue
+        if mpv_map:
+            return mpv_map
+
+    if isinstance(payload, list):
+        for athlete in payload:
+            if "atleta_id" in athlete:
+                mpv_map[int(athlete["atleta_id"])] = float(athlete.get("minimo_para_valorizar", 0.0))
+
+    return mpv_map
+
+
 def fetch_mpv_map(gm_token: str) -> dict[int, float]:
     clean_token = gm_token.strip().strip('"').strip("'")
     if clean_token.lower().startswith("bearer "):
@@ -194,38 +222,30 @@ def fetch_mpv_map(gm_token: str) -> dict[int, float]:
         "https://api.cartola.globo.com/auth/gatomestre/atletas",
         "https://api.cartola.globo.com/auth/mercado/atleta/gatomestre",
     ]
-    headers = {
+    headers_base = {
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json, text/plain, */*",
-        "Authorization": f"Bearer {clean_token}",
         "x-glb-app-name": "cartola-web",
     }
+    auth_variants = [
+        {"X-GLB-Token": clean_token},
+        {"Authorization": f"Bearer {clean_token}"},
+        {
+            "X-GLB-Token": clean_token,
+            "Authorization": f"Bearer {clean_token}",
+        },
+    ]
 
-    for url in endpoints:
-        try:
-            response = requests.get(url, headers=headers, timeout=20)
-            if response.status_code != 200:
+    for headers_auth in auth_variants:
+        headers = headers_base | headers_auth
+        for url in endpoints:
+            try:
+                response = requests.get(url, headers=headers, timeout=20)
+                if response.status_code != 200:
+                    continue
+                mpv_map = extract_mpv_map(response.json())
+                if mpv_map:
+                    return mpv_map
+            except Exception:
                 continue
-            payload = response.json()
-            mpv_map: dict[int, float] = {}
-            if isinstance(payload, dict) and "atletas" in payload:
-                for athlete in payload["atletas"]:
-                    if "atleta_id" in athlete:
-                        mpv_map[int(athlete["atleta_id"])] = float(athlete.get("minimo_para_valorizar", 0.0))
-                if mpv_map:
-                    return mpv_map
-            if isinstance(payload, dict):
-                for athlete_id, values in payload.items():
-                    if isinstance(values, dict) and "minimo_para_valorizar" in values:
-                        mpv_map[int(athlete_id)] = float(values.get("minimo_para_valorizar", 0.0))
-                if mpv_map:
-                    return mpv_map
-            if isinstance(payload, list):
-                for athlete in payload:
-                    if "atleta_id" in athlete:
-                        mpv_map[int(athlete["atleta_id"])] = float(athlete.get("minimo_para_valorizar", 0.0))
-                if mpv_map:
-                    return mpv_map
-        except Exception:
-            continue
     return {}
