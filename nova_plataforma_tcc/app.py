@@ -399,24 +399,71 @@ with tab_quick:
             if not players:
                 continue
             with st.expander(f"{edit_position} ({len(players)})"):
-                indicator_df = pd.DataFrame([
-                    {"Jogador": p["name"], "Confiança": p["confidence"], "Unanimidade": p["badges"]["unanimidade"], "Bom capitão": p["badges"]["bom_capitao"], "Bom RL": p["badges"]["bom_rl"]}
-                    for p in players
-                ])
-                edited_indicators = st.data_editor(
-                    indicator_df, hide_index=True, disabled=["Jogador"], use_container_width=True,
-                    column_config={"Confiança": st.column_config.SelectboxColumn("Confiança", options=["A", "B", "C", "D"])},
-                    key=f"indicator_grid_{edit_position}",
-                )
-                if st.button("Salvar indicadores", key=f"save_indicators_{edit_position}"):
-                    for idx, values in edited_indicators.iterrows():
-                        players[idx]["confidence"] = values["Confiança"]
-                        players[idx]["badges"] = {
-                            "unanimidade": bool(values["Unanimidade"]),
-                            "bom_capitao": bool(values["Bom capitão"]),
-                            "bom_rl": bool(values["Bom RL"]),
-                        }
-                    st.success("Indicadores salvos.")
+                profile_options = POSITION_CONFIG[edit_position]["profiles"]
+                column_widths = [2.4, 0.8, 0.8, 0.9, 0.8] + [1.0] * len(profile_options)
+                header_labels = ["Jogador", "Conf.", "Unân.", "Capitão", "Bom RL"] + [
+                    display_profile_label(profile) for profile in profile_options
+                ]
+                header_columns = st.columns(column_widths)
+                for column, label in zip(header_columns, header_labels):
+                    column.caption(label)
+
+                pending_indicators: list[dict] = []
+                with st.form(f"indicator_form_{edit_position}"):
+                    for idx, player in enumerate(players):
+                        row_columns = st.columns(column_widths)
+                        row_columns[0].markdown(f'**{player["name"]}**  \n{player["team"]}')
+                        confidence_value = player.get("confidence", "A")
+                        confidence = row_columns[1].selectbox(
+                            f"Confiança de {player['name']}",
+                            options=["A", "B", "C", "D"],
+                            index=["A", "B", "C", "D"].index(confidence_value) if confidence_value in ["A", "B", "C", "D"] else 0,
+                            key=f"quick_conf_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        unanimity = row_columns[2].checkbox(
+                            f"Unanimidade - {player['name']}",
+                            value=bool(player.get("badges", {}).get("unanimidade", False)),
+                            key=f"quick_una_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        captain = row_columns[3].checkbox(
+                            f"Bom capitão - {player['name']}",
+                            value=bool(player.get("badges", {}).get("bom_capitao", False)),
+                            key=f"quick_cap_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        good_rl = row_columns[4].checkbox(
+                            f"Bom RL - {player['name']}",
+                            value=bool(player.get("badges", {}).get("bom_rl", False)),
+                            key=f"quick_rl_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        selected_profiles = []
+                        for profile_idx, profile in enumerate(profile_options):
+                            if row_columns[5 + profile_idx].checkbox(
+                                f"{display_profile_label(profile)} - {player['name']}",
+                                value=profile in player.get("profiles", []),
+                                key=f"quick_profile_{edit_position}_{idx}_{profile}",
+                                label_visibility="collapsed",
+                            ):
+                                selected_profiles.append(profile)
+                        pending_indicators.append(
+                            {
+                                "confidence": confidence,
+                                "profiles": selected_profiles,
+                                "badges": {
+                                    "unanimidade": unanimity,
+                                    "bom_capitao": captain,
+                                    "bom_rl": good_rl,
+                                },
+                            }
+                        )
+                    submitted = st.form_submit_button("Salvar indicadores", use_container_width=True, type="primary")
+                if submitted:
+                    for player, values in zip(players, pending_indicators):
+                        player.update(values)
+                    st.success("Confianças, destaques e perfis salvos.")
 
 with tab_editor:
     st.subheader(f"Editor de {position_key}")
