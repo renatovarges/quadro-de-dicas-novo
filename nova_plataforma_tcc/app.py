@@ -8,9 +8,16 @@ ROOT_DIR = Path(__file__).resolve().parent
 sys.path.append(str(ROOT_DIR))
 
 from src.analysis import ScoutAnalyzer
+from src.auth_store import delete_globo_auth, load_globo_auth, save_globo_auth
 from src.config import DEFAULT_EXCEL_FILE, POSITION_CONFIG, ROOT_PROJECT_DIR
-from src.data_sources import build_photo_index, fetch_market_snapshot, load_excel_data, load_rounds_file
-from src.exporter import combine_pngs_to_pdf_bytes, export_html_to_png_bytes
+from src.data_sources import (
+    build_photo_index,
+    fetch_market_snapshot,
+    load_excel_data,
+    load_rounds_file,
+    refresh_globo_tokens,
+)
+from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes
 from src.render import build_preview_html
 from src.utils import display_profile_label, position_storage_key
 
@@ -20,6 +27,18 @@ PHOTOS_FILE = ROOT_PROJECT_DIR / "tcc_fotos_jogadores.html"
 EXPORT_POSITION_ORDER = list(POSITION_CONFIG.keys())
 
 st.set_page_config(page_title="Nova Plataforma TCC", page_icon="⚽", layout="wide")
+
+
+def get_remote_auth_config() -> dict[str, str] | None:
+    try:
+        config = {
+            "url": str(st.secrets["SUPABASE_URL"]),
+            "service_role_key": str(st.secrets["SUPABASE_SERVICE_ROLE_KEY"]),
+            "encryption_key": str(st.secrets["AUTH_ENCRYPTION_KEY"]),
+        }
+        return config if all(config.values()) else None
+    except Exception:
+        return None
 
 
 def check_pin() -> bool:
@@ -78,7 +97,12 @@ def ensure_state():
     st.session_state.setdefault("preview_png_scale", None)
     st.session_state.setdefault("preview_pdf_bytes", None)
     st.session_state.setdefault("preview_pdf_name", "")
+    st.session_state.setdefault("all_pngs_zip_bytes", None)
+    st.session_state.setdefault("all_pngs_zip_name", "")
     st.session_state.setdefault("last_position", "Goleiros")
+    if "globo_auth" not in st.session_state:
+        st.session_state["globo_auth"] = load_globo_auth(get_remote_auth_config())
+    st.session_state.setdefault("globo_auth_source", "")
     for position_key in POSITION_CONFIG:
         st.session_state.setdefault(position_storage_key(position_key), [])
         st.session_state.setdefault(f"market_{position_key}", "")
@@ -99,7 +123,25 @@ def ensure_state():
 
 
 def add_player_to_position(position_name: str, payload: dict):
-    st.session_state[position_storage_key(position_name)].append(payload)
+    items = st.session_state[position_storage_key(position_name)]
+    athlete_id = payload.get("athlete_id")
+    if athlete_id is not None and any(item.get("athlete_id") == athlete_id for item in items):
+        return
+    items.append(payload)
+
+
+def market_row_to_player(row: dict) -> dict:
+    return {
+        "name": row["nome"],
+        "full_name": row.get("nome_completo", "") or row["nome"],
+        "athlete_id": row.get("atleta_id"),
+        "team": row["time"],
+        "price": float(row.get("preco", 0.0)),
+        "mpv": float(row.get("minimo_valorizar", 0.0)),
+        "confidence": "A",
+        "profiles": [],
+        "badges": {"unanimidade": False, "bom_capitao": False, "bom_rl": False},
+    }
 
 
 def populate_form_from_market(position_name: str, selected_row: dict | None):
@@ -221,16 +263,57 @@ with st.sidebar:
     st.divider()
     st.subheader("Fontes")
     uploaded_excel = st.file_uploader("Planilha de scouts", type=["xlsx"])
-    gm_token = st.text_input(
-        "Token Gato Mestre",
-        help="Opcional. Quando informado, o sistema tenta carregar o mínimo para valorizar.",
-    )
+    saved_auth = bool(st.session_state.get("globo_auth"))
+    gm_token = ""
+    globo_id_token = ""
+    globo_refresh_token = ""
+    if not saved_auth:
+        gm_token = st.text_input(
+            "Access token do Gato Mestre",
+            type="password",
+            help="Configuração inicial para carregar o mínimo para valorizar.",
+        )
+    with st.expander("Renovação automática do token"):
+        if saved_auth:
+            st.success("Conta Globo conectada. Os tokens serão renovados e salvos automaticamente.")
+        else:
+            st.caption("Configuração única: cole o conjunto obtido no Response do refresh-token.")
+            globo_id_token = st.text_input("ID token", type="password")
+            globo_refresh_token = st.text_input("Refresh token", type="password")
+        if saved_auth and st.button("Desconectar conta Globo", use_container_width=True):
+            delete_globo_auth(get_remote_auth_config())
+            st.session_state["globo_auth"] = None
+            st.session_state["globo_auth_source"] = ""
+            st.rerun()
     if st.button("Atualizar mercado", use_container_width=True, type="primary"):
         with st.spinner("Buscando mercado do Cartola..."):
-            st.session_state["market_data"] = fetch_market_snapshot(gm_token.strip() or None)
-        if st.session_state["market_data"].empty:
-            st.warning("Mercado não retornou dados.")
-        else:
+            active_access_token = gm_token.strip()
+            if active_access_token and globo_id_token.strip() and globo_refresh_token.strip():
+                source_marker = globo_refresh_token.strip()
+                if st.session_state.get("globo_auth_source") != source_marker:
+                    st.session_state["globo_auth"] = {
+                        "access_token": active_access_token,
+                        "id_token": globo_id_token.strip(),
+                        "refresh_token": source_marker,
+                    }
+                    st.session_state["globo_auth_source"] = source_marker
+            if st.session_state.get("globo_auth"):
+                try:
+                    st.session_state["globo_auth"] = refresh_globo_tokens(**st.session_state["globo_auth"])
+                    save_globo_auth(st.session_state["globo_auth"], get_remote_auth_config())
+                    active_access_token = st.session_state["globo_auth"]["access_token"]
+                    st.caption("Token renovado e salvo automaticamente pela Globo.")
+                except Exception as exc:
+                    st.warning(f"Não foi possível renovar o token; tentando o access token informado. Detalhe: {exc}")
+            try:
+                st.session_state["market_data"] = fetch_market_snapshot(active_access_token or None)
+            except Exception as exc:
+                st.session_state["market_data"] = pd.DataFrame()
+                st.error(
+                    "Não foi possível acessar a API do Cartola. Verifique a conexão com a internet "
+                    f"e tente novamente. Detalhe: {exc}"
+                )
+        if not st.session_state["market_data"].empty:
             st.success(f'{len(st.session_state["market_data"])} atletas carregados.')
 
 datasets = get_excel_data(
@@ -261,7 +344,79 @@ if st.session_state.get(f"pending_reset_{position_key}", False):
         st.session_state[f"profile_{position_key}_{profile_name}"] = False
     st.session_state[f"pending_reset_{position_key}"] = False
 
-tab_editor, tab_preview = st.tabs(["Editor", "Visualização"])
+tab_quick, tab_editor, tab_preview = st.tabs(["Seleção rápida", "Editor detalhado", "Visualização"])
+
+with tab_quick:
+    st.subheader("Seleção rápida de jogadores")
+    st.caption("Marque prováveis e dúvidas em qualquer posição. Eles entram com confiança A e podem ser refinados logo abaixo.")
+    if market_df.empty:
+        st.info("Clique em Atualizar mercado na barra lateral para carregar os atletas.")
+    else:
+        status_options = sorted(market_df["status"].dropna().unique().tolist())
+        status_filter = st.multiselect(
+            "Status exibidos",
+            options=status_options,
+            default=[status for status in ["Provável", "Dúvida"] if status in status_options],
+        )
+        quick_tabs = st.tabs(list(POSITION_CONFIG.keys()))
+        for quick_tab, quick_position in zip(quick_tabs, POSITION_CONFIG.keys()):
+            with quick_tab:
+                position_names = set(POSITION_CONFIG[quick_position]["market_positions"])
+                quick_df = market_df[market_df["posicao_norm"].isin(position_names)].copy()
+                if status_filter:
+                    quick_df = quick_df[quick_df["status"].isin(status_filter)]
+                selected_ids = {p.get("athlete_id") for p in st.session_state[position_storage_key(quick_position)]}
+                quick_df.insert(0, "Indicar", quick_df["atleta_id"].isin(selected_ids))
+                edited = st.data_editor(
+                    quick_df[["Indicar", "atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"]],
+                    hide_index=True,
+                    disabled=["atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"],
+                    column_config={
+                        "Indicar": st.column_config.CheckboxColumn("Indicar"),
+                        "atleta_id": None,
+                        "nome": "Jogador", "time": "Clube", "status": "Status",
+                        "preco": st.column_config.NumberColumn("Preço", format="C$ %.2f"),
+                        "minimo_valorizar": st.column_config.NumberColumn("MPV", format="%.2f"),
+                    },
+                    use_container_width=True,
+                    key=f"quick_grid_{quick_position}",
+                )
+                if st.button("Aplicar seleção", key=f"apply_quick_{quick_position}", type="primary", use_container_width=True):
+                    chosen_ids = set(edited.loc[edited["Indicar"], "atleta_id"].tolist())
+                    chosen_rows = quick_df[quick_df["atleta_id"].isin(chosen_ids)]
+                    current = st.session_state[position_storage_key(quick_position)]
+                    visible_ids = set(quick_df["atleta_id"].tolist())
+                    current[:] = [p for p in current if p.get("athlete_id") not in visible_ids or p.get("athlete_id") in chosen_ids]
+                    for _, row in chosen_rows.iterrows():
+                        add_player_to_position(quick_position, market_row_to_player(row.to_dict()))
+                    st.success(f"Lista atualizada: {len(current)} indicado(s).")
+
+        st.divider()
+        st.subheader("Indicadores dos selecionados")
+        st.caption("Edite os indicadores mais usados em lote. Os perfis específicos continuam no editor detalhado.")
+        for edit_position in POSITION_CONFIG:
+            players = st.session_state[position_storage_key(edit_position)]
+            if not players:
+                continue
+            with st.expander(f"{edit_position} ({len(players)})"):
+                indicator_df = pd.DataFrame([
+                    {"Jogador": p["name"], "Confiança": p["confidence"], "Unanimidade": p["badges"]["unanimidade"], "Bom capitão": p["badges"]["bom_capitao"], "Bom RL": p["badges"]["bom_rl"]}
+                    for p in players
+                ])
+                edited_indicators = st.data_editor(
+                    indicator_df, hide_index=True, disabled=["Jogador"], use_container_width=True,
+                    column_config={"Confiança": st.column_config.SelectboxColumn("Confiança", options=["A", "B", "C", "D"])},
+                    key=f"indicator_grid_{edit_position}",
+                )
+                if st.button("Salvar indicadores", key=f"save_indicators_{edit_position}"):
+                    for idx, values in edited_indicators.iterrows():
+                        players[idx]["confidence"] = values["Confiança"]
+                        players[idx]["badges"] = {
+                            "unanimidade": bool(values["Unanimidade"]),
+                            "bom_capitao": bool(values["Bom capitão"]),
+                            "bom_rl": bool(values["Bom RL"]),
+                        }
+                    st.success("Indicadores salvos.")
 
 with tab_editor:
     st.subheader(f"Editor de {position_key}")
@@ -404,6 +559,8 @@ with tab_preview:
         st.session_state["preview_png_scale"] = None
         st.session_state["preview_pdf_bytes"] = None
         st.session_state["preview_pdf_name"] = ""
+        st.session_state["all_pngs_zip_bytes"] = None
+        st.session_state["all_pngs_zip_name"] = ""
 
     if st.session_state["preview_html"]:
         export_col1, export_col2, export_col3 = st.columns([1.2, 1, 1.15])
@@ -503,6 +660,47 @@ with tab_preview:
                                 st.error(f"Não consegui gerar o PDF consolidado na posição {failed_position}: {error_text}")
                             else:
                                 st.error(f"Não consegui gerar o PDF consolidado: {error_text}")
+        if st.button("Gerar pacote com todos os PNGs", use_container_width=True, type="secondary"):
+            positions_with_cards = [
+                pos for pos in POSITION_CONFIG
+                if st.session_state.get(position_storage_key(pos))
+            ]
+            if not positions_with_cards:
+                st.error("Não há jogadores adicionados para gerar o pacote.")
+            else:
+                png_files: list[tuple[str, bytes]] = []
+                failed_position = None
+                last_error = None
+                with st.spinner("Gerando um PNG por posição e montando o ZIP..."):
+                    for pos in positions_with_cards:
+                        cards = build_cards_for_position(analyzer, pos, target_round, window_n, filter_mode)
+                        html = build_position_preview_html(pos, target_round, window_n, filter_mode, cards)
+                        png_bytes = None
+                        for scale in [4, 3, 2]:
+                            try:
+                                png_bytes = export_html_to_png_bytes(html, scale=scale)
+                                break
+                            except Exception as exc:
+                                last_error = exc
+                        if not png_bytes:
+                            failed_position = pos
+                            break
+                        png_files.append((f"indicacoes_{pos.lower()}_rodada_{target_round}.png", png_bytes))
+                if failed_position:
+                    st.error(f"Falha ao gerar {failed_position}: {last_error}")
+                else:
+                    st.session_state["all_pngs_zip_bytes"] = combine_files_to_zip_bytes(png_files)
+                    st.session_state["all_pngs_zip_name"] = f"indicacoes_png_rodada_{target_round}.zip"
+                    st.success(f"Pacote pronto com {len(png_files)} PNG(s).")
+        if st.session_state.get("all_pngs_zip_bytes"):
+            st.download_button(
+                "Baixar todos os PNGs (.zip)",
+                data=st.session_state["all_pngs_zip_bytes"],
+                file_name=st.session_state["all_pngs_zip_name"],
+                mime="application/zip",
+                key=f"download_all_pngs_{target_round}",
+                use_container_width=True,
+            )
         if st.session_state.get("preview_pdf_bytes"):
             st.download_button(
                 "Baixar PDF consolidado",

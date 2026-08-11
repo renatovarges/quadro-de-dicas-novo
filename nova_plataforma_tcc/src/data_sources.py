@@ -9,6 +9,38 @@ from .config import POSITION_CONFIG
 from .utils import normalize_text, resolve_team_name
 
 
+GLOBO_REFRESH_URL = "https://web-api.globoid.globo.com/v1/refresh-token"
+GLOBO_CARTOLA_CLIENT_ID = "cartola-web@apps.globoid"
+
+
+def refresh_globo_tokens(access_token: str, id_token: str, refresh_token: str) -> dict[str, str]:
+    payload = {
+        "client_id": GLOBO_CARTOLA_CLIENT_ID,
+        "access_token": access_token.strip(),
+        "id_token": id_token.strip(),
+        "refresh_token": refresh_token.strip(),
+    }
+    response = requests.post(
+        GLOBO_REFRESH_URL,
+        json=payload,
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "Origin": "https://cartola.globo.com",
+            "Referer": "https://cartola.globo.com/",
+            "User-Agent": "Mozilla/5.0",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    result = response.json()
+    required = ("access_token", "id_token", "refresh_token")
+    missing = [field for field in required if not result.get(field)]
+    if missing:
+        raise RuntimeError("A renovação não devolveu: " + ", ".join(missing))
+    return {field: str(result[field]) for field in required}
+
+
 def load_rounds_file(file_path: Path) -> dict[int, list[tuple[str, str]]]:
     rounds: dict[int, list[tuple[str, str]]] = {}
     current_round = None
@@ -152,6 +184,7 @@ def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
 
     clubes = payload.get("clubes", {})
     posicoes = payload.get("posicoes", {})
+    status_atletas = payload.get("status", {})
     mpv_map = fetch_mpv_map(gm_token) if gm_token else {}
 
     rows = []
@@ -170,6 +203,8 @@ def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
             continue
 
         athlete_id = int(athlete["atleta_id"])
+        status_id = athlete.get("status_id")
+        status_payload = status_atletas.get(str(status_id), {}) if isinstance(status_atletas, dict) else {}
         rows.append(
             {
                 "atleta_id": athlete_id,
@@ -179,6 +214,8 @@ def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
                 "posicao_norm": position_name,
                 "preco": float(athlete.get("preco_num", 0.0)),
                 "minimo_valorizar": float(mpv_map.get(athlete_id, 0.0)),
+                "status_id": status_id,
+                "status": status_payload.get("nome", "") or {7: "Provável", 2: "Dúvida"}.get(status_id, "Outro"),
             }
         )
 

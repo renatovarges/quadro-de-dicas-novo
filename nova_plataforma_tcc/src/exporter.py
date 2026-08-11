@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from zipfile import ZIP_DEFLATED, ZipFile
 
 
 BROWSER_CANDIDATES = [
@@ -99,3 +100,11 @@ def combine_pngs_to_pdf_bytes(png_images: list[bytes]) -> bytes:
                 pass
         for buffer in buffers:
             buffer.close()
+
+
+def combine_files_to_zip_bytes(files: list[tuple[str, bytes]]) -> bytes:
+    output = BytesIO()
+    with ZipFile(output, "w", compression=ZIP_DEFLATED, compresslevel=6) as archive:
+        for file_name, file_bytes in files:
+            archive.writestr(file_name, file_bytes)
+    return output.getvalue()
