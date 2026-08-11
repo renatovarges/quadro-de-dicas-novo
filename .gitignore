@@ -10,3 +10,4 @@ __pycache__/
 SITES DE AJUDA/
 tcc_fotos_jogadores.backup_*.html
 MODELO *.png
+.local_secrets/
