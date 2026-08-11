@@ -19,6 +19,7 @@ from src.data_sources import (
 )
 from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes
 from src.render import build_preview_html
+from src.summary_render import build_summary_html
 from src.utils import display_profile_label, position_storage_key
 
 
@@ -26,7 +27,7 @@ ROUNDS_FILE = ROOT_PROJECT_DIR / "RODADAS_BRASILEIRAO_2026.txt"
 PHOTOS_FILE = ROOT_PROJECT_DIR / "tcc_fotos_jogadores.html"
 EXPORT_POSITION_ORDER = list(POSITION_CONFIG.keys())
 
-st.set_page_config(page_title="Nova Plataforma TCC", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="Central de Dicas TCC + MD3", page_icon="⚽", layout="wide")
 
 
 def get_remote_auth_config() -> dict[str, str] | None:
@@ -99,12 +100,17 @@ def ensure_state():
     st.session_state.setdefault("preview_pdf_name", "")
     st.session_state.setdefault("all_pngs_zip_bytes", None)
     st.session_state.setdefault("all_pngs_zip_name", "")
+    st.session_state.setdefault("tcc_summary_png", None)
+    st.session_state.setdefault("md3_summary_png", None)
+    st.session_state.setdefault("tcc_summary_html", None)
+    st.session_state.setdefault("md3_summary_html", None)
     st.session_state.setdefault("last_position", "Goleiros")
     if "globo_auth" not in st.session_state:
         st.session_state["globo_auth"] = load_globo_auth(get_remote_auth_config())
     st.session_state.setdefault("globo_auth_source", "")
     for position_key in POSITION_CONFIG:
         st.session_state.setdefault(position_storage_key(position_key), [])
+        st.session_state.setdefault(md3_storage_key(position_key), [])
         st.session_state.setdefault(f"market_{position_key}", "")
         st.session_state.setdefault(f"last_market_{position_key}", "")
         st.session_state.setdefault(f"name_{position_key}", "")
@@ -128,6 +134,28 @@ def add_player_to_position(position_name: str, payload: dict):
     if athlete_id is not None and any(item.get("athlete_id") == athlete_id for item in items):
         return
     items.append(payload)
+
+
+def md3_storage_key(position_name: str) -> str:
+    return f"md3_{position_storage_key(position_name)}"
+
+
+def add_player_to_project(position_name: str, payload: dict, project: str) -> None:
+    state_key = position_storage_key(position_name) if project == "tcc" else md3_storage_key(position_name)
+    items = st.session_state[state_key]
+    athlete_id = payload.get("athlete_id")
+    if athlete_id is not None and any(item.get("athlete_id") == athlete_id for item in items):
+        return
+    items.append(payload)
+
+
+def players_by_position(project: str) -> dict[str, list[dict]]:
+    return {
+        position: st.session_state[
+            position_storage_key(position) if project == "tcc" else md3_storage_key(position)
+        ]
+        for position in POSITION_CONFIG
+    }
 
 
 def market_row_to_player(row: dict) -> dict:
@@ -236,7 +264,7 @@ def build_indications_csv_bytes(target_round: int) -> bytes | None:
 
 ensure_state()
 
-st.title("Nova Plataforma TCC")
+st.title("Central de Dicas TCC + MD3")
 st.caption(f"Projeto base em `{ROOT_PROJECT_DIR}`")
 
 rounds_data = get_rounds()
@@ -344,7 +372,9 @@ if st.session_state.get(f"pending_reset_{position_key}", False):
         st.session_state[f"profile_{position_key}_{profile_name}"] = False
     st.session_state[f"pending_reset_{position_key}"] = False
 
-tab_quick, tab_editor, tab_preview = st.tabs(["Seleção rápida", "Editor detalhado", "Visualização"])
+tab_quick, tab_editor, tab_preview, tab_summaries = st.tabs(
+    ["Seleção rápida", "Editor detalhado TCC", "Premium TCC", "Resumos TCC e MD3"]
+)
 
 with tab_quick:
     st.subheader("Seleção rápida de jogadores")
@@ -365,14 +395,17 @@ with tab_quick:
                 quick_df = market_df[market_df["posicao_norm"].isin(position_names)].copy()
                 if status_filter:
                     quick_df = quick_df[quick_df["status"].isin(status_filter)]
-                selected_ids = {p.get("athlete_id") for p in st.session_state[position_storage_key(quick_position)]}
-                quick_df.insert(0, "Indicar", quick_df["atleta_id"].isin(selected_ids))
+                selected_tcc_ids = {p.get("athlete_id") for p in st.session_state[position_storage_key(quick_position)]}
+                selected_md3_ids = {p.get("athlete_id") for p in st.session_state[md3_storage_key(quick_position)]}
+                quick_df.insert(0, "MD3", quick_df["atleta_id"].isin(selected_md3_ids))
+                quick_df.insert(0, "TCC", quick_df["atleta_id"].isin(selected_tcc_ids))
                 edited = st.data_editor(
-                    quick_df[["Indicar", "atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"]],
+                    quick_df[["TCC", "MD3", "atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"]],
                     hide_index=True,
                     disabled=["atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"],
                     column_config={
-                        "Indicar": st.column_config.CheckboxColumn("Indicar"),
+                        "TCC": st.column_config.CheckboxColumn("TCC"),
+                        "MD3": st.column_config.CheckboxColumn("MD3"),
                         "atleta_id": None,
                         "nome": "Jogador", "time": "Clube", "status": "Status",
                         "preco": st.column_config.NumberColumn("Preço", format="C$ %.2f"),
@@ -382,18 +415,26 @@ with tab_quick:
                     key=f"quick_grid_{quick_position}",
                 )
                 if st.button("Aplicar seleção", key=f"apply_quick_{quick_position}", type="primary", use_container_width=True):
-                    chosen_ids = set(edited.loc[edited["Indicar"], "atleta_id"].tolist())
-                    chosen_rows = quick_df[quick_df["atleta_id"].isin(chosen_ids)]
-                    current = st.session_state[position_storage_key(quick_position)]
+                    chosen_tcc_ids = set(edited.loc[edited["TCC"], "atleta_id"].tolist())
+                    chosen_md3_ids = set(edited.loc[edited["MD3"], "atleta_id"].tolist())
                     visible_ids = set(quick_df["atleta_id"].tolist())
-                    current[:] = [p for p in current if p.get("athlete_id") not in visible_ids or p.get("athlete_id") in chosen_ids]
-                    for _, row in chosen_rows.iterrows():
-                        add_player_to_position(quick_position, market_row_to_player(row.to_dict()))
-                    st.success(f"Lista atualizada: {len(current)} indicado(s).")
+                    for project, chosen_ids in (("tcc", chosen_tcc_ids), ("md3", chosen_md3_ids)):
+                        state_key = position_storage_key(quick_position) if project == "tcc" else md3_storage_key(quick_position)
+                        current = st.session_state[state_key]
+                        current[:] = [
+                            player for player in current
+                            if player.get("athlete_id") not in visible_ids or player.get("athlete_id") in chosen_ids
+                        ]
+                        chosen_rows = quick_df[quick_df["atleta_id"].isin(chosen_ids)]
+                        for _, row in chosen_rows.iterrows():
+                            add_player_to_project(quick_position, market_row_to_player(row.to_dict()), project)
+                    tcc_count = len(st.session_state[position_storage_key(quick_position)])
+                    md3_count = len(st.session_state[md3_storage_key(quick_position)])
+                    st.success(f"Seleção atualizada: {tcc_count} no TCC e {md3_count} no MD3.")
 
         st.divider()
-        st.subheader("Indicadores dos selecionados")
-        st.caption("Edite os indicadores mais usados em lote. Os perfis específicos continuam no editor detalhado.")
+        st.subheader("Indicadores TCC")
+        st.caption("Configure confiança, destaques e perfis do TCC.")
         for edit_position in POSITION_CONFIG:
             players = st.session_state[position_storage_key(edit_position)]
             if not players:
@@ -464,6 +505,67 @@ with tab_quick:
                     for player, values in zip(players, pending_indicators):
                         player.update(values)
                     st.success("Confianças, destaques e perfis salvos.")
+
+        st.divider()
+        st.subheader("Indicadores MD3")
+        st.caption("Os indicadores do MD3 são independentes dos indicadores do TCC.")
+        for edit_position in POSITION_CONFIG:
+            md3_players = st.session_state[md3_storage_key(edit_position)]
+            if not md3_players:
+                continue
+            with st.expander(f"{edit_position} · MD3 ({len(md3_players)})"):
+                widths = [2.8, 1.0, 1.0, 1.0, 1.0]
+                headers = st.columns(widths)
+                for column, label in zip(headers, ["Jogador", "Conf.", "Unân.", "Capitão", "Luxo"]):
+                    column.caption(label)
+                pending_md3: list[dict] = []
+                with st.form(f"md3_indicator_form_{edit_position}"):
+                    for idx, player in enumerate(md3_players):
+                        columns = st.columns(widths)
+                        columns[0].markdown(f'**{player["name"]}**  \n{player["team"]}')
+                        current_confidence = player.get("confidence", "A")
+                        confidence = columns[1].selectbox(
+                            f"Confiança MD3 de {player['name']}",
+                            options=["A", "B", "C", "D"],
+                            index=["A", "B", "C", "D"].index(current_confidence) if current_confidence in ["A", "B", "C", "D"] else 0,
+                            key=f"md3_conf_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        unanimity = columns[2].checkbox(
+                            f"Unanimidade MD3 - {player['name']}",
+                            value=bool(player.get("badges", {}).get("unanimidade", False)),
+                            key=f"md3_una_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        captain = columns[3].checkbox(
+                            f"Bom capitão MD3 - {player['name']}",
+                            value=bool(player.get("badges", {}).get("bom_capitao", False)),
+                            key=f"md3_cap_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        luxury = columns[4].checkbox(
+                            f"Luxo MD3 - {player['name']}",
+                            value=bool(player.get("badges", {}).get("bom_rl", False)),
+                            key=f"md3_rl_{edit_position}_{idx}",
+                            label_visibility="collapsed",
+                        )
+                        pending_md3.append(
+                            {
+                                "confidence": confidence,
+                                "badges": {
+                                    "unanimidade": unanimity,
+                                    "bom_capitao": captain,
+                                    "bom_rl": luxury,
+                                },
+                            }
+                        )
+                    submitted_md3 = st.form_submit_button(
+                        "Salvar indicadores MD3", use_container_width=True, type="primary"
+                    )
+                if submitted_md3:
+                    for player, values in zip(md3_players, pending_md3):
+                        player.update(values)
+                    st.success("Indicadores do MD3 salvos.")
 
 with tab_editor:
     st.subheader(f"Editor de {position_key}")
@@ -712,7 +814,8 @@ with tab_preview:
                 pos for pos in POSITION_CONFIG
                 if st.session_state.get(position_storage_key(pos))
             ]
-            if not positions_with_cards:
+            has_md3_cards = any(st.session_state.get(md3_storage_key(pos)) for pos in POSITION_CONFIG)
+            if not positions_with_cards and not has_md3_cards:
                 st.error("Não há jogadores adicionados para gerar o pacote.")
             else:
                 png_files: list[tuple[str, bytes]] = []
@@ -733,6 +836,29 @@ with tab_preview:
                             failed_position = pos
                             break
                         png_files.append((f"indicacoes_{pos.lower()}_rodada_{target_round}.png", png_bytes))
+                    if not failed_position:
+                        summary_projects = []
+                        if positions_with_cards:
+                            summary_projects.append(("tcc", "TCC"))
+                        if has_md3_cards:
+                            summary_projects.append(("md3", "MD3"))
+                        for project, label in summary_projects:
+                            summary_html = build_summary_html(
+                                project, target_round, players_by_position(project)
+                            )
+                            summary_png = None
+                            for scale in [3, 2]:
+                                try:
+                                    summary_png = export_html_to_png_bytes(summary_html, scale=scale)
+                                    break
+                                except Exception as exc:
+                                    last_error = exc
+                            if not summary_png:
+                                failed_position = f"Resumo {label}"
+                                break
+                            png_files.append(
+                                (f"dicas_resumo_{project}_rodada_{target_round}.png", summary_png)
+                            )
                 if failed_position:
                     st.error(f"Falha ao gerar {failed_position}: {last_error}")
                 else:
@@ -770,3 +896,77 @@ with tab_preview:
         st.components.v1.html(st.session_state["preview_html"], height=1700, scrolling=True)
     else:
         st.info("Monte a lista e clique em gerar visualização.")
+
+with tab_summaries:
+    st.subheader("Resumos gerais TCC e MD3")
+    tcc_total = sum(len(items) for items in players_by_position("tcc").values())
+    md3_total = sum(len(items) for items in players_by_position("md3").values())
+    st.caption(
+        f"Seleção atual: {tcc_total} jogador(es) no TCC e {md3_total} jogador(es) no MD3. "
+        "As alturas das duas artes são ajustadas automaticamente."
+    )
+
+    if st.button("Gerar/atualizar os dois resumos", type="primary", use_container_width=True):
+        st.session_state["tcc_summary_html"] = build_summary_html(
+            "tcc", target_round, players_by_position("tcc")
+        )
+        st.session_state["md3_summary_html"] = build_summary_html(
+            "md3", target_round, players_by_position("md3")
+        )
+        st.session_state["tcc_summary_png"] = None
+        st.session_state["md3_summary_png"] = None
+
+    summary_columns = st.columns(2)
+    summary_specs = [
+        ("TCC", "tcc_summary_html", "tcc_summary_png", "tcc"),
+        ("MD3", "md3_summary_html", "md3_summary_png", "md3"),
+    ]
+    for column, (label, html_key, png_key, file_slug) in zip(summary_columns, summary_specs):
+        with column:
+            st.markdown(f"### Resumo {label}")
+            summary_html = st.session_state.get(html_key)
+            if not summary_html:
+                st.info("Gere os resumos para visualizar esta arte.")
+                continue
+            st.components.v1.html(summary_html, height=1100, scrolling=True)
+            if st.button(
+                f"Gerar PNG resumido {label}",
+                key=f"generate_summary_{file_slug}",
+                use_container_width=True,
+            ):
+                last_error = None
+                with st.spinner(f"Gerando resumo {label}..."):
+                    for scale in [3, 2]:
+                        try:
+                            st.session_state[png_key] = export_html_to_png_bytes(summary_html, scale=scale)
+                            last_error = None
+                            break
+                        except Exception as exc:
+                            last_error = exc
+                if last_error and not st.session_state.get(png_key):
+                    st.error(f"Não foi possível gerar o resumo {label}: {last_error}")
+                else:
+                    st.success(f"Resumo {label} pronto.")
+            if st.session_state.get(png_key):
+                st.download_button(
+                    f"Baixar resumo {label}",
+                    data=st.session_state[png_key],
+                    file_name=f"dicas_resumo_{file_slug}_rodada_{target_round}.png",
+                    mime="image/png",
+                    key=f"download_summary_{file_slug}_{target_round}",
+                    use_container_width=True,
+                )
+
+    if st.session_state.get("tcc_summary_png") or st.session_state.get("md3_summary_png"):
+        summary_files = []
+        if st.session_state.get("tcc_summary_png"):
+            summary_files.append((f"dicas_resumo_tcc_rodada_{target_round}.png", st.session_state["tcc_summary_png"]))
+        if st.session_state.get("md3_summary_png"):
+            summary_files.append((f"dicas_resumo_md3_rodada_{target_round}.png", st.session_state["md3_summary_png"]))
+        st.download_button(
+            "Baixar resumos disponíveis (.zip)",
+            data=combine_files_to_zip_bytes(summary_files),
+            file_name=f"resumos_tcc_md3_rodada_{target_round}.zip",
+            mime="application/zip",
+            use_container_width=True,
+        )
