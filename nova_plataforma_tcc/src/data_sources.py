@@ -23,31 +23,54 @@ def as_float(value, default: float = 0.0) -> float:
 
 
 def refresh_globo_tokens(access_token: str, id_token: str, refresh_token: str) -> dict[str, str]:
-    payload = {
-        "client_id": GLOBO_CARTOLA_CLIENT_ID,
-        "access_token": access_token.strip(),
-        "id_token": id_token.strip(),
-        "refresh_token": refresh_token.strip(),
-    }
-    response = requests.post(
-        GLOBO_REFRESH_URL,
-        json=payload,
-        headers={
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Origin": "https://cartola.globo.com",
-            "Referer": "https://cartola.globo.com/",
-            "User-Agent": "Mozilla/5.0",
+    clean_access_token = access_token.strip()
+    clean_id_token = id_token.strip()
+    clean_refresh_token = refresh_token.strip()
+    payloads = [
+        {
+            "client_id": GLOBO_CARTOLA_CLIENT_ID,
+            "refresh_token": clean_refresh_token,
         },
-        timeout=20,
-    )
-    response.raise_for_status()
-    result = response.json()
-    required = ("access_token", "id_token", "refresh_token")
-    missing = [field for field in required if not result.get(field)]
-    if missing:
-        raise RuntimeError("A renovação não devolveu: " + ", ".join(missing))
-    return {field: str(result[field]) for field in required}
+        {
+            "client_id": GLOBO_CARTOLA_CLIENT_ID,
+            "access_token": clean_access_token,
+            "id_token": clean_id_token,
+            "refresh_token": clean_refresh_token,
+        },
+    ]
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+        "Origin": "https://cartola.globo.com",
+        "Referer": "https://cartola.globo.com/",
+        "User-Agent": "Mozilla/5.0",
+    }
+    errors: list[str] = []
+
+    for payload in payloads:
+        try:
+            response = requests.post(GLOBO_REFRESH_URL, json=payload, headers=headers, timeout=20)
+            if response.status_code >= 400:
+                errors.append(f"{response.status_code} {response.text[:160]}")
+                continue
+            result = response.json()
+            renewed = {
+                "access_token": str(result.get("access_token") or clean_access_token),
+                "id_token": str(result.get("id_token") or clean_id_token),
+                "refresh_token": str(result.get("refresh_token") or clean_refresh_token),
+            }
+            missing = [field for field, value in renewed.items() if not value]
+            if missing:
+                errors.append("resposta sem " + ", ".join(missing))
+                continue
+            return renewed
+        except requests.RequestException as exc:
+            errors.append(str(exc))
+        except ValueError as exc:
+            errors.append(f"resposta inválida: {exc}")
+
+    detail = " | ".join(errors) if errors else "sem resposta utilizável"
+    raise RuntimeError(f"A renovação do token Globo falhou: {detail}")
 
 
 def load_rounds_file(file_path: Path) -> dict[int, list[tuple[str, str]]]:

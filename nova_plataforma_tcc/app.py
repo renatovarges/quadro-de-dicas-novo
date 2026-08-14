@@ -345,6 +345,8 @@ with st.sidebar:
                             "Não foi possível renovar o token e não há access token salvo para fallback. "
                             f"Detalhe: {exc}"
                         )
+            if not active_access_token:
+                st.warning("Mercado público será carregado sem MPV. Para puxar mínimo para valorizar, conecte a conta Globo.")
             try:
                 st.session_state["market_data"] = fetch_market_snapshot(active_access_token or None)
             except Exception as exc:
@@ -354,14 +356,22 @@ with st.sidebar:
                     f"e tente novamente. Detalhe: {exc}"
                 )
         if not st.session_state["market_data"].empty:
-            st.success(f'{len(st.session_state["market_data"])} atletas carregados.')
-            if active_access_token and "minimo_valorizar" in st.session_state["market_data"]:
+            total_market = len(st.session_state["market_data"])
+            if "minimo_valorizar" in st.session_state["market_data"]:
                 mpv_values = st.session_state["market_data"]["minimo_valorizar"].fillna(0)
-                if mpv_values.eq(0).all():
-                    st.warning(
-                        "Mercado carregado, mas o mínimo para valorizar veio zerado. "
-                        "O access token salvo pode estar expirado; desconecte e conecte a conta Globo novamente."
-                    )
+                mpv_count = int(mpv_values.gt(0).sum())
+            else:
+                mpv_count = 0
+            if active_access_token and mpv_count > 0:
+                st.success(f"{total_market} atletas carregados; MPV carregado para {mpv_count} atletas.")
+            elif active_access_token:
+                st.error(
+                    f"{total_market} atletas carregados, mas nenhum MPV foi retornado. "
+                    "O access token não liberou o Gato Mestre; desconecte e conecte a conta Globo com tokens novos."
+                )
+            else:
+                st.success(f"{total_market} atletas carregados.")
+                st.info("MPV não carregado porque nenhum token Globo foi informado.")
 
 datasets = get_excel_data(
     uploaded_excel.getvalue() if uploaded_excel else None,
