@@ -13,6 +13,15 @@ GLOBO_REFRESH_URL = "https://web-api.globoid.globo.com/v1/refresh-token"
 GLOBO_CARTOLA_CLIENT_ID = "cartola-web@apps.globoid"
 
 
+def as_float(value, default: float = 0.0) -> float:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def refresh_globo_tokens(access_token: str, id_token: str, refresh_token: str) -> dict[str, str]:
     payload = {
         "client_id": GLOBO_CARTOLA_CLIENT_ID,
@@ -228,7 +237,7 @@ def extract_mpv_map(payload) -> dict[int, float]:
     if isinstance(payload, dict) and "atletas" in payload:
         for athlete in payload["atletas"]:
             if "atleta_id" in athlete:
-                mpv_map[int(athlete["atleta_id"])] = float(athlete.get("minimo_para_valorizar", 0.0))
+                mpv_map[int(athlete["atleta_id"])] = as_float(athlete.get("minimo_para_valorizar"))
         if mpv_map:
             return mpv_map
 
@@ -236,7 +245,7 @@ def extract_mpv_map(payload) -> dict[int, float]:
         for athlete_id, values in payload.items():
             if isinstance(values, dict) and "minimo_para_valorizar" in values:
                 try:
-                    mpv_map[int(athlete_id)] = float(values.get("minimo_para_valorizar", 0.0))
+                    mpv_map[int(athlete_id)] = as_float(values.get("minimo_para_valorizar"))
                 except (TypeError, ValueError):
                     continue
         if mpv_map:
@@ -245,7 +254,7 @@ def extract_mpv_map(payload) -> dict[int, float]:
     if isinstance(payload, list):
         for athlete in payload:
             if "atleta_id" in athlete:
-                mpv_map[int(athlete["atleta_id"])] = float(athlete.get("minimo_para_valorizar", 0.0))
+                mpv_map[int(athlete["atleta_id"])] = as_float(athlete.get("minimo_para_valorizar"))
 
     return mpv_map
 

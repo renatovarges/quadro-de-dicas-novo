@@ -315,7 +315,8 @@ with st.sidebar:
             st.rerun()
     if st.button("Atualizar mercado", use_container_width=True, type="primary"):
         with st.spinner("Buscando mercado do Cartola..."):
-            active_access_token = gm_token.strip()
+            saved_tokens = st.session_state.get("globo_auth") or {}
+            active_access_token = gm_token.strip() or str(saved_tokens.get("access_token", "")).strip()
             if active_access_token and globo_id_token.strip() and globo_refresh_token.strip():
                 source_marker = globo_refresh_token.strip()
                 if st.session_state.get("globo_auth_source") != source_marker:
@@ -332,7 +333,18 @@ with st.sidebar:
                     active_access_token = st.session_state["globo_auth"]["access_token"]
                     st.caption("Token renovado e salvo automaticamente pela Globo.")
                 except Exception as exc:
-                    st.warning(f"Não foi possível renovar o token; tentando o access token informado. Detalhe: {exc}")
+                    fallback_access_token = str(st.session_state["globo_auth"].get("access_token", "")).strip()
+                    if fallback_access_token:
+                        active_access_token = fallback_access_token
+                        st.warning(
+                            "Não foi possível renovar o token; tentando o access token salvo. "
+                            f"Detalhe: {exc}"
+                        )
+                    else:
+                        st.warning(
+                            "Não foi possível renovar o token e não há access token salvo para fallback. "
+                            f"Detalhe: {exc}"
+                        )
             try:
                 st.session_state["market_data"] = fetch_market_snapshot(active_access_token or None)
             except Exception as exc:
@@ -343,6 +355,13 @@ with st.sidebar:
                 )
         if not st.session_state["market_data"].empty:
             st.success(f'{len(st.session_state["market_data"])} atletas carregados.')
+            if active_access_token and "minimo_valorizar" in st.session_state["market_data"]:
+                mpv_values = st.session_state["market_data"]["minimo_valorizar"].fillna(0)
+                if mpv_values.eq(0).all():
+                    st.warning(
+                        "Mercado carregado, mas o mínimo para valorizar veio zerado. "
+                        "O access token salvo pode estar expirado; desconecte e conecte a conta Globo novamente."
+                    )
 
 datasets = get_excel_data(
     uploaded_excel.getvalue() if uploaded_excel else None,
