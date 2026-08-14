@@ -4,7 +4,7 @@ from html import escape
 from pathlib import Path
 
 from .config import ASSETS_DIR, FONTS_DIR, MAIN_LOGO_FILE, MAIN_LOGO_WHITE_FILE
-from .utils import file_to_base64, team_badge_path
+from .utils import file_to_base64, order_indication_players, team_badge_path
 
 
 SUMMARY_ASSETS = ASSETS_DIR / "summaries"
@@ -110,15 +110,7 @@ def _player_card(player: dict, position: str, theme: dict) -> str:
 def _position_block(position: str, players: list[dict], theme: dict) -> str:
     if not players:
         return ""
-    ordered = sorted(
-        players,
-        key=lambda p: (
-            not bool(p.get("badges", {}).get("unanimidade")),
-            not bool(p.get("badges", {}).get("bom_capitao")),
-            str(p.get("confidence", "A")),
-            str(p.get("name", "")),
-        ),
-    )
+    ordered = order_indication_players(players)
     cards = "".join(_player_card(player, position, theme) for player in ordered)
     return f'<section class="position"><h2>{escape(position.upper())}</h2>{cards}</section>'
 

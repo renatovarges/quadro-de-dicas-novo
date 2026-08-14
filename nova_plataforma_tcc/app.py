@@ -24,7 +24,7 @@ from src.data_sources import (
 from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes
 from src.render import build_preview_html
 from src.summary_render import build_summary_html
-from src.utils import display_profile_label, position_storage_key
+from src.utils import display_profile_label, normalize_text, order_indication_players, position_storage_key
 
 
 ROUNDS_FILE = ROOT_PROJECT_DIR / "RODADAS_BRASILEIRAO_2026.txt"
@@ -165,11 +165,35 @@ def add_player_to_project(position_name: str, payload: dict, project: str) -> No
     items.append(payload)
 
 
+def player_ui_key(player: dict, index: int) -> str:
+    if player.get("_ui_key"):
+        return str(player["_ui_key"])
+    athlete_id = player.get("athlete_id")
+    if athlete_id not in (None, ""):
+        return f"id_{athlete_id}"
+    raw_key = f'{player.get("team", "")}_{player.get("name", "")}'
+    normalized = normalize_text(raw_key).lower().replace(" ", "_").replace("-", "_")
+    player["_ui_key"] = f"manual_{normalized or 'player'}_{index}"
+    return str(player["_ui_key"])
+
+
+def sort_players_state(state_key: str) -> None:
+    st.session_state[state_key][:] = order_indication_players(st.session_state[state_key])
+
+
+def sort_all_indication_lists() -> None:
+    for position in POSITION_CONFIG:
+        sort_players_state(position_storage_key(position))
+        sort_players_state(md3_storage_key(position))
+
+
 def players_by_position(project: str) -> dict[str, list[dict]]:
     return {
-        position: st.session_state[
-            position_storage_key(position) if project == "tcc" else md3_storage_key(position)
-        ]
+        position: order_indication_players(
+            st.session_state[
+                position_storage_key(position) if project == "tcc" else md3_storage_key(position)
+            ]
+        )
         for position in POSITION_CONFIG
     }
 
@@ -219,7 +243,7 @@ def build_cards_for_position(
 ) -> list[dict]:
     return [
         analyzer.build_card(player, position_name, target_round, window_n, filter_mode)
-        for player in st.session_state[position_storage_key(position_name)]
+        for player in order_indication_players(st.session_state[position_storage_key(position_name)])
     ]
 
 
@@ -245,7 +269,7 @@ def build_indications_export_df(target_round: int) -> pd.DataFrame:
     global_order = 1
 
     for position_name in EXPORT_POSITION_ORDER:
-        players = st.session_state.get(position_storage_key(position_name), [])
+        players = order_indication_players(st.session_state.get(position_storage_key(position_name), []))
         for position_order, player in enumerate(players, start=1):
             rows.append(
                 {
@@ -279,6 +303,7 @@ def build_indications_csv_bytes(target_round: int) -> bytes | None:
 
 
 ensure_state()
+sort_all_indication_lists()
 
 st.title("Central de Dicas TCC + MD3")
 st.caption(f"Projeto base em `{ROOT_PROJECT_DIR}`")
@@ -512,6 +537,7 @@ with tab_quick:
                         chosen_rows = quick_df[quick_df["atleta_id"].isin(chosen_ids)]
                         for _, row in chosen_rows.iterrows():
                             add_player_to_project(quick_position, market_row_to_player(row.to_dict()), project)
+                        sort_players_state(state_key)
                     tcc_count = len(st.session_state[position_storage_key(quick_position)])
                     md3_count = len(st.session_state[md3_storage_key(quick_position)])
                     st.success(f"Seleção atualizada: {tcc_count} no TCC e {md3_count} no MD3.")
@@ -536,6 +562,7 @@ with tab_quick:
                 pending_indicators: list[dict] = []
                 with st.form(f"indicator_form_{edit_position}"):
                     for idx, player in enumerate(players):
+                        player_key = player_ui_key(player, idx)
                         row_columns = st.columns(column_widths)
                         row_columns[0].markdown(f'**{player["name"]}**  \n{player["team"]}')
                         confidence_value = player.get("confidence", "A")
@@ -543,25 +570,25 @@ with tab_quick:
                             f"Confiança de {player['name']}",
                             options=["A", "B", "C", "D"],
                             index=["A", "B", "C", "D"].index(confidence_value) if confidence_value in ["A", "B", "C", "D"] else 0,
-                            key=f"quick_conf_{edit_position}_{idx}",
+                            key=f"quick_conf_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         unanimity = row_columns[2].checkbox(
                             f"Unanimidade - {player['name']}",
                             value=bool(player.get("badges", {}).get("unanimidade", False)),
-                            key=f"quick_una_{edit_position}_{idx}",
+                            key=f"quick_una_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         captain = row_columns[3].checkbox(
                             f"Bom capitão - {player['name']}",
                             value=bool(player.get("badges", {}).get("bom_capitao", False)),
-                            key=f"quick_cap_{edit_position}_{idx}",
+                            key=f"quick_cap_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         good_rl = row_columns[4].checkbox(
                             f"Bom RL - {player['name']}",
                             value=bool(player.get("badges", {}).get("bom_rl", False)),
-                            key=f"quick_rl_{edit_position}_{idx}",
+                            key=f"quick_rl_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         selected_profiles = []
@@ -569,7 +596,7 @@ with tab_quick:
                             if row_columns[5 + profile_idx].checkbox(
                                 f"{display_profile_label(profile)} - {player['name']}",
                                 value=profile in player.get("profiles", []),
-                                key=f"quick_profile_{edit_position}_{idx}_{profile}",
+                                key=f"quick_profile_{edit_position}_{player_key}_{profile}",
                                 label_visibility="collapsed",
                             ):
                                 selected_profiles.append(profile)
@@ -588,6 +615,7 @@ with tab_quick:
                 if submitted:
                     for player, values in zip(players, pending_indicators):
                         player.update(values)
+                    sort_players_state(position_storage_key(edit_position))
                     st.success("Confianças, destaques e perfis salvos.")
 
         st.divider()
@@ -605,6 +633,7 @@ with tab_quick:
                 pending_md3: list[dict] = []
                 with st.form(f"md3_indicator_form_{edit_position}"):
                     for idx, player in enumerate(md3_players):
+                        player_key = player_ui_key(player, idx)
                         columns = st.columns(widths)
                         columns[0].markdown(f'**{player["name"]}**  \n{player["team"]}')
                         current_confidence = player.get("confidence", "A")
@@ -612,25 +641,25 @@ with tab_quick:
                             f"Confiança MD3 de {player['name']}",
                             options=["A", "B", "C", "D"],
                             index=["A", "B", "C", "D"].index(current_confidence) if current_confidence in ["A", "B", "C", "D"] else 0,
-                            key=f"md3_conf_{edit_position}_{idx}",
+                            key=f"md3_conf_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         unanimity = columns[2].checkbox(
                             f"Unanimidade MD3 - {player['name']}",
                             value=bool(player.get("badges", {}).get("unanimidade", False)),
-                            key=f"md3_una_{edit_position}_{idx}",
+                            key=f"md3_una_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         captain = columns[3].checkbox(
                             f"Bom capitão MD3 - {player['name']}",
                             value=bool(player.get("badges", {}).get("bom_capitao", False)),
-                            key=f"md3_cap_{edit_position}_{idx}",
+                            key=f"md3_cap_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         luxury = columns[4].checkbox(
                             f"Luxo MD3 - {player['name']}",
                             value=bool(player.get("badges", {}).get("bom_rl", False)),
-                            key=f"md3_rl_{edit_position}_{idx}",
+                            key=f"md3_rl_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
                         pending_md3.append(
@@ -649,6 +678,7 @@ with tab_quick:
                 if submitted_md3:
                     for player, values in zip(md3_players, pending_md3):
                         player.update(values)
+                    sort_players_state(md3_storage_key(edit_position))
                     st.success("Indicadores do MD3 salvos.")
 
 with tab_editor:
@@ -732,6 +762,7 @@ with tab_editor:
                         },
                     },
                 )
+                sort_players_state(position_storage_key(position_key))
                 reset_form(position_key)
                 st.rerun()
 
@@ -765,7 +796,7 @@ with tab_editor:
             key=f"download_csv_editor_{target_round}",
             use_container_width=True,
         )
-        st.caption("O CSV consolida todas as indicacoes montadas no editor e preserva a ordem manual de cada posicao.")
+        st.caption("O CSV consolida todas as indicacoes montadas no editor e segue a hierarquia editorial de cada posicao.")
 
 with tab_preview:
     st.subheader(f"Prévia de {position_key}")

@@ -109,6 +109,41 @@ def display_profile_label(profile_name: str) -> str:
     }.get(profile_name, profile_name)
 
 
+def player_attribute_count(player: dict) -> int:
+    profiles = {str(profile) for profile in player.get("profiles", []) if profile}
+    badges = player.get("badges", {}) or {}
+    badge_count = sum(
+        1
+        for badge_name in ("bom_rl", "bom_capitao")
+        if bool(badges.get(badge_name, False))
+    )
+    return len(profiles) + badge_count
+
+
+def indication_player_sort_key(player: dict, original_index: int = 0) -> tuple:
+    badges = player.get("badges", {}) or {}
+    confidence_order = {"A": 0, "B": 1, "C": 2, "D": 3}
+    confidence = str(player.get("confidence", "A")).upper()
+    return (
+        0 if badges.get("unanimidade") else 1,
+        confidence_order.get(confidence, 99),
+        -player_attribute_count(player),
+        original_index,
+    )
+
+
+def order_indication_players(players: list[dict] | None) -> list[dict]:
+    if not players:
+        return []
+    return [
+        player
+        for original_index, player in sorted(
+            enumerate(players),
+            key=lambda item: indication_player_sort_key(item[1], item[0]),
+        )
+    ]
+
+
 def display_team_name(team_name: str) -> str:
     resolved = resolve_team_name(team_name)
     return TEAM_DISPLAY_NAMES.get(resolved, str(team_name).title())
