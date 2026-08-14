@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,7 @@ from .utils import normalize_text, resolve_team_name
 
 GLOBO_REFRESH_URL = "https://web-api.globoid.globo.com/v1/refresh-token"
 GLOBO_CARTOLA_CLIENT_ID = "cartola-web@apps.globoid"
+MPV_CACHE_VERSION = 1
 
 
 def as_float(value, default: float = 0.0) -> float:
@@ -20,6 +22,53 @@ def as_float(value, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def count_mpv_values(mpv_map: dict[int, float]) -> int:
+    return sum(1 for value in mpv_map.values() if float(value or 0.0) != 0.0)
+
+
+def build_mpv_cache_payload(
+    mpv_map: dict[int, float],
+    source: str,
+    market_count: int | None = None,
+) -> dict:
+    clean_map = {str(int(athlete_id)): float(value) for athlete_id, value in mpv_map.items()}
+    return {
+        "version": MPV_CACHE_VERSION,
+        "source": source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "market_count": int(market_count or 0),
+        "mpv_count": count_mpv_values({int(k): v for k, v in clean_map.items()}),
+        "mpv": clean_map,
+    }
+
+
+def mpv_map_from_cache_payload(cache_payload: dict | None) -> dict[int, float]:
+    if not isinstance(cache_payload, dict):
+        return {}
+    raw_map = cache_payload.get("mpv") or cache_payload.get("mpv_map") or {}
+    if not isinstance(raw_map, dict):
+        return {}
+
+    mpv_map: dict[int, float] = {}
+    for athlete_id, value in raw_map.items():
+        try:
+            mpv_map[int(athlete_id)] = as_float(value)
+        except (TypeError, ValueError):
+            continue
+    return mpv_map
+
+
+def mpv_map_from_market_df(market_df: pd.DataFrame) -> dict[int, float]:
+    if market_df.empty or not {"atleta_id", "minimo_valorizar"}.issubset(market_df.columns):
+        return {}
+    mpv_map: dict[int, float] = {}
+    for row in market_df[["atleta_id", "minimo_valorizar"]].itertuples(index=False):
+        if pd.isna(row.atleta_id):
+            continue
+        mpv_map[int(row.atleta_id)] = as_float(row.minimo_valorizar)
+    return mpv_map
 
 
 def refresh_globo_tokens(access_token: str, id_token: str, refresh_token: str) -> dict[str, str]:
@@ -208,7 +257,11 @@ def build_photo_index(file_path: Path) -> dict[str, dict[str, str]]:
     return photo_index
 
 
-def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
+def fetch_market_snapshot(
+    gm_token: str | None = None,
+    mpv_map: dict[int, float] | None = None,
+    fallback_mpv_map: dict[int, float] | None = None,
+) -> pd.DataFrame:
     market_url = "https://api.cartola.globo.com/atletas/mercado"
     response = requests.get(market_url, timeout=20)
     response.raise_for_status()
@@ -217,7 +270,10 @@ def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
     clubes = payload.get("clubes", {})
     posicoes = payload.get("posicoes", {})
     status_atletas = payload.get("status", {})
-    mpv_map = fetch_mpv_map(gm_token) if gm_token else {}
+    resolved_mpv_map = dict(fallback_mpv_map or {})
+    live_mpv_map = mpv_map if mpv_map is not None else (fetch_mpv_map(gm_token) if gm_token else {})
+    if live_mpv_map and count_mpv_values(live_mpv_map):
+        resolved_mpv_map.update(live_mpv_map)
 
     rows = []
     valid_positions = {
@@ -245,7 +301,7 @@ def fetch_market_snapshot(gm_token: str | None = None) -> pd.DataFrame:
                 "time": team_name,
                 "posicao_norm": position_name,
                 "preco": float(athlete.get("preco_num", 0.0)),
-                "minimo_valorizar": float(mpv_map.get(athlete_id, 0.0)),
+                "minimo_valorizar": float(resolved_mpv_map.get(athlete_id, 0.0)),
                 "status_id": status_id,
                 "status": status_payload.get("nome", "") or {7: "Provável", 2: "Dúvida"}.get(status_id, "Outro"),
             }

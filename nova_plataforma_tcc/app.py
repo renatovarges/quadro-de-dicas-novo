@@ -8,13 +8,17 @@ ROOT_DIR = Path(__file__).resolve().parent
 sys.path.append(str(ROOT_DIR))
 
 from src.analysis import ScoutAnalyzer
-from src.auth_store import delete_globo_auth, load_globo_auth, save_globo_auth
+from src.auth_store import delete_globo_auth, load_globo_auth, load_mpv_cache, save_globo_auth, save_mpv_cache
 from src.config import DEFAULT_EXCEL_FILE, POSITION_CONFIG, ROOT_PROJECT_DIR
 from src.data_sources import (
+    build_mpv_cache_payload,
     build_photo_index,
+    count_mpv_values,
     fetch_market_snapshot,
+    fetch_mpv_map,
     load_excel_data,
     load_rounds_file,
+    mpv_map_from_cache_payload,
     refresh_globo_tokens,
 )
 from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes
@@ -40,6 +44,16 @@ def get_remote_auth_config() -> dict[str, str] | None:
         return config if all(config.values()) else None
     except Exception:
         return None
+
+
+def describe_mpv_cache(cache_payload: dict | None) -> str:
+    mpv_map = mpv_map_from_cache_payload(cache_payload)
+    mpv_count = count_mpv_values(mpv_map)
+    if not mpv_count:
+        return ""
+    generated_at = str((cache_payload or {}).get("generated_at") or "").strip()
+    updated_label = generated_at[:16].replace("T", " ") + " UTC" if generated_at else "horario nao informado"
+    return f"Cache MPV ativo: {mpv_count} atletas; atualizado em {updated_label}."
 
 
 def check_pin() -> bool:
@@ -107,6 +121,8 @@ def ensure_state():
     st.session_state.setdefault("last_position", "Goleiros")
     if "globo_auth" not in st.session_state:
         st.session_state["globo_auth"] = load_globo_auth(get_remote_auth_config())
+    if "mpv_cache" not in st.session_state:
+        st.session_state["mpv_cache"] = load_mpv_cache(get_remote_auth_config())
     st.session_state.setdefault("globo_auth_source", "")
     for position_key in POSITION_CONFIG:
         st.session_state.setdefault(position_storage_key(position_key), [])
@@ -291,6 +307,7 @@ with st.sidebar:
     st.divider()
     st.subheader("Fontes")
     uploaded_excel = st.file_uploader("Planilha de scouts", type=["xlsx"])
+    remote_config = get_remote_auth_config()
     saved_auth = bool(st.session_state.get("globo_auth"))
     gm_token = ""
     globo_id_token = ""
@@ -309,14 +326,21 @@ with st.sidebar:
             globo_id_token = st.text_input("ID token", type="password")
             globo_refresh_token = st.text_input("Refresh token", type="password")
         if saved_auth and st.button("Desconectar conta Globo", use_container_width=True):
-            delete_globo_auth(get_remote_auth_config())
+            delete_globo_auth(remote_config)
             st.session_state["globo_auth"] = None
             st.session_state["globo_auth_source"] = ""
             st.rerun()
+    cache_description = describe_mpv_cache(st.session_state.get("mpv_cache"))
+    if cache_description:
+        st.caption(cache_description)
     if st.button("Atualizar mercado", use_container_width=True, type="primary"):
         with st.spinner("Buscando mercado do Cartola..."):
             saved_tokens = st.session_state.get("globo_auth") or {}
             active_access_token = gm_token.strip() or str(saved_tokens.get("access_token", "")).strip()
+            live_mpv_map: dict[int, float] = {}
+            live_mpv_count = 0
+            cached_mpv_map = mpv_map_from_cache_payload(st.session_state.get("mpv_cache"))
+            used_cached_mpv = False
             if active_access_token and globo_id_token.strip() and globo_refresh_token.strip():
                 source_marker = globo_refresh_token.strip()
                 if st.session_state.get("globo_auth_source") != source_marker:
@@ -329,7 +353,7 @@ with st.sidebar:
             if st.session_state.get("globo_auth"):
                 try:
                     st.session_state["globo_auth"] = refresh_globo_tokens(**st.session_state["globo_auth"])
-                    save_globo_auth(st.session_state["globo_auth"], get_remote_auth_config())
+                    save_globo_auth(st.session_state["globo_auth"], remote_config)
                     active_access_token = st.session_state["globo_auth"]["access_token"]
                     st.caption("Token renovado e salvo automaticamente pela Globo.")
                 except Exception as exc:
@@ -346,9 +370,38 @@ with st.sidebar:
                             f"Detalhe: {exc}"
                         )
             if not active_access_token:
-                st.warning("Mercado público será carregado sem MPV. Para puxar mínimo para valorizar, conecte a conta Globo.")
+                if cached_mpv_map:
+                    used_cached_mpv = True
+                    st.caption("Usando o cache automático de MPV salvo.")
+                else:
+                    st.warning("Mercado público será carregado sem MPV. Para puxar mínimo para valorizar, conecte a conta Globo.")
+            else:
+                live_mpv_map = fetch_mpv_map(active_access_token)
+                live_mpv_count = count_mpv_values(live_mpv_map)
+                if live_mpv_count:
+                    st.caption("MPV puxado do Gato Mestre; cache será atualizado.")
+                elif cached_mpv_map:
+                    used_cached_mpv = True
+                    st.warning("Gato Mestre não retornou MPV agora; usando o cache automático salvo.")
+                else:
+                    st.warning("Gato Mestre não retornou MPV e ainda não existe cache automático salvo.")
             try:
-                st.session_state["market_data"] = fetch_market_snapshot(active_access_token or None)
+                st.session_state["market_data"] = fetch_market_snapshot(
+                    mpv_map=live_mpv_map,
+                    fallback_mpv_map=cached_mpv_map,
+                )
+                if live_mpv_count:
+                    cache_payload = build_mpv_cache_payload(
+                        live_mpv_map,
+                        source="gato_mestre_manual",
+                        market_count=len(st.session_state["market_data"]),
+                    )
+                    try:
+                        save_mpv_cache(cache_payload, remote_config)
+                        st.session_state["mpv_cache"] = cache_payload
+                        st.caption("Cache MPV salvo para o robô e para os próximos acessos.")
+                    except Exception as exc:
+                        st.warning(f"MPV carregado, mas não foi possível salvar o cache: {exc}")
             except Exception as exc:
                 st.session_state["market_data"] = pd.DataFrame()
                 st.error(
@@ -359,15 +412,17 @@ with st.sidebar:
             total_market = len(st.session_state["market_data"])
             if "minimo_valorizar" in st.session_state["market_data"]:
                 mpv_values = st.session_state["market_data"]["minimo_valorizar"].fillna(0)
-                mpv_count = int(mpv_values.gt(0).sum())
+                mpv_count = int(mpv_values.ne(0).sum())
             else:
                 mpv_count = 0
-            if active_access_token and mpv_count > 0:
-                st.success(f"{total_market} atletas carregados; MPV carregado para {mpv_count} atletas.")
+            if live_mpv_count and mpv_count > 0:
+                st.success(f"{total_market} atletas carregados; MPV atualizado ao vivo para {mpv_count} atletas.")
+            elif used_cached_mpv and mpv_count > 0:
+                st.success(f"{total_market} atletas carregados; MPV carregado do cache automático para {mpv_count} atletas.")
             elif active_access_token:
                 st.error(
                     f"{total_market} atletas carregados, mas nenhum MPV foi retornado. "
-                    "O access token não liberou o Gato Mestre; desconecte e conecte a conta Globo com tokens novos."
+                    "O access token não liberou o Gato Mestre e não há cache automático disponível."
                 )
             else:
                 st.success(f"{total_market} atletas carregados.")

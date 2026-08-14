@@ -12,8 +12,10 @@ from cryptography.fernet import Fernet, InvalidToken
 
 AUTH_DIR = Path(__file__).resolve().parents[2] / ".local_secrets"
 AUTH_FILE = AUTH_DIR / "globo_auth.bin"
+MPV_CACHE_FILE = AUTH_DIR / "cartola_mpv_cache.json"
 DESCRIPTION = "Nova Plataforma TCC - tokens Globo"
 REMOTE_RECORD_ID = "globo_cartola"
+REMOTE_MPV_CACHE_RECORD_ID = "cartola_mpv_cache"
 
 
 class DATA_BLOB(ctypes.Structure):
@@ -79,19 +81,39 @@ def _fernet(config: dict[str, str]) -> Fernet:
     return Fernet(config["encryption_key"].encode("ascii"))
 
 
+def _save_remote_payload(record_id: str, payload: dict, remote_config: dict[str, str]) -> None:
+    encrypted = _fernet(remote_config).encrypt(json.dumps(payload).encode("utf-8")).decode("ascii")
+    response = requests.post(
+        _remote_url(remote_config),
+        params={"on_conflict": "id"},
+        headers=_remote_headers(remote_config) | {"Prefer": "resolution=merge-duplicates"},
+        json={"id": record_id, "payload": encrypted},
+        timeout=20,
+    )
+    response.raise_for_status()
+
+
+def _load_remote_payload(record_id: str, remote_config: dict[str, str]) -> dict | None:
+    response = requests.get(
+        _remote_url(remote_config),
+        params={"id": f"eq.{record_id}", "select": "payload", "limit": "1"},
+        headers=_remote_headers(remote_config),
+        timeout=20,
+    )
+    response.raise_for_status()
+    rows = response.json()
+    if not rows:
+        return None
+    clear_data = _fernet(remote_config).decrypt(rows[0]["payload"].encode("ascii"))
+    payload = json.loads(clear_data.decode("utf-8"))
+    return payload if isinstance(payload, dict) else None
+
+
 def save_globo_auth(tokens: dict[str, str], remote_config: dict[str, str] | None = None) -> None:
     required = ("access_token", "id_token", "refresh_token")
     payload = {field: str(tokens[field]) for field in required}
     if remote_config:
-        encrypted = _fernet(remote_config).encrypt(json.dumps(payload).encode("utf-8")).decode("ascii")
-        response = requests.post(
-            _remote_url(remote_config),
-            params={"on_conflict": "id"},
-            headers=_remote_headers(remote_config) | {"Prefer": "resolution=merge-duplicates"},
-            json={"id": REMOTE_RECORD_ID, "payload": encrypted},
-            timeout=20,
-        )
-        response.raise_for_status()
+        _save_remote_payload(REMOTE_RECORD_ID, payload, remote_config)
         return
     AUTH_DIR.mkdir(parents=True, exist_ok=True)
     AUTH_FILE.write_bytes(_protect(json.dumps(payload).encode("utf-8")))
@@ -100,18 +122,9 @@ def save_globo_auth(tokens: dict[str, str], remote_config: dict[str, str] | None
 def load_globo_auth(remote_config: dict[str, str] | None = None) -> dict[str, str] | None:
     if remote_config:
         try:
-            response = requests.get(
-                _remote_url(remote_config),
-                params={"id": f"eq.{REMOTE_RECORD_ID}", "select": "payload", "limit": "1"},
-                headers=_remote_headers(remote_config),
-                timeout=20,
-            )
-            response.raise_for_status()
-            rows = response.json()
-            if not rows:
+            payload = _load_remote_payload(REMOTE_RECORD_ID, remote_config)
+            if not payload:
                 return None
-            clear_data = _fernet(remote_config).decrypt(rows[0]["payload"].encode("ascii"))
-            payload = json.loads(clear_data.decode("utf-8"))
             required = ("access_token", "id_token", "refresh_token")
             if not all(payload.get(field) for field in required):
                 return None
@@ -142,3 +155,26 @@ def delete_globo_auth(remote_config: dict[str, str] | None = None) -> None:
         return
     if AUTH_FILE.exists():
         AUTH_FILE.unlink()
+
+
+def save_mpv_cache(cache_payload: dict, remote_config: dict[str, str] | None = None) -> None:
+    if remote_config:
+        _save_remote_payload(REMOTE_MPV_CACHE_RECORD_ID, cache_payload, remote_config)
+        return
+    AUTH_DIR.mkdir(parents=True, exist_ok=True)
+    MPV_CACHE_FILE.write_text(json.dumps(cache_payload, ensure_ascii=False), encoding="utf-8")
+
+
+def load_mpv_cache(remote_config: dict[str, str] | None = None) -> dict | None:
+    if remote_config:
+        try:
+            return _load_remote_payload(REMOTE_MPV_CACHE_RECORD_ID, remote_config)
+        except (requests.RequestException, InvalidToken, KeyError, ValueError, TypeError):
+            return None
+    if not MPV_CACHE_FILE.exists():
+        return None
+    try:
+        payload = json.loads(MPV_CACHE_FILE.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else None
+    except Exception:
+        return None
