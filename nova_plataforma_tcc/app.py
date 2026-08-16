@@ -19,7 +19,6 @@ from src.data_sources import (
     load_excel_data,
     load_rounds_file,
     mpv_map_from_cache_payload,
-    refresh_globo_tokens,
 )
 from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes
 from src.render import build_preview_html
@@ -119,11 +118,8 @@ def ensure_state():
     st.session_state.setdefault("tcc_summary_html", None)
     st.session_state.setdefault("md3_summary_html", None)
     st.session_state.setdefault("last_position", "Goleiros")
-    if "globo_auth" not in st.session_state:
-        st.session_state["globo_auth"] = load_globo_auth(get_remote_auth_config())
     if "mpv_cache" not in st.session_state:
         st.session_state["mpv_cache"] = load_mpv_cache(get_remote_auth_config())
-    st.session_state.setdefault("globo_auth_source", "")
     for position_key in POSITION_CONFIG:
         st.session_state.setdefault(position_storage_key(position_key), [])
         st.session_state.setdefault(md3_storage_key(position_key), [])
@@ -333,73 +329,63 @@ with st.sidebar:
     st.subheader("Fontes")
     uploaded_excel = st.file_uploader("Planilha de scouts", type=["xlsx"])
     remote_config = get_remote_auth_config()
-    saved_auth = bool(st.session_state.get("globo_auth"))
+    saved_tokens = load_globo_auth(remote_config)
+    saved_auth = bool(saved_tokens)
     gm_token = ""
     globo_id_token = ""
     globo_refresh_token = ""
-    if not saved_auth:
-        gm_token = st.text_input(
-            "Access token do Gato Mestre",
-            type="password",
-            help="Configuração inicial para carregar o mínimo para valorizar.",
-        )
     with st.expander("Renovação automática do token"):
         if saved_auth:
-            st.success("Conta Globo conectada. Os tokens serão renovados e salvos automaticamente.")
+            st.success("Conta Globo conectada. A renovação é feita exclusivamente pelo robô automático.")
+            replace_tokens = st.checkbox(
+                "Substituir tokens da Globo",
+                help="Use somente quando a Globo encerrar a sessão automática.",
+            )
         else:
-            st.caption("Configuração única: cole o conjunto obtido no Response do refresh-token.")
+            replace_tokens = True
+        if replace_tokens:
+            st.caption("Cole o conjunto obtido no Response do refresh-token.")
+            gm_token = st.text_input("Access token", type="password")
             globo_id_token = st.text_input("ID token", type="password")
             globo_refresh_token = st.text_input("Refresh token", type="password")
         if saved_auth and st.button("Desconectar conta Globo", use_container_width=True):
             delete_globo_auth(remote_config)
-            st.session_state["globo_auth"] = None
-            st.session_state["globo_auth_source"] = ""
             st.rerun()
+    latest_cache = load_mpv_cache(remote_config)
+    if latest_cache:
+        st.session_state["mpv_cache"] = latest_cache
     cache_description = describe_mpv_cache(st.session_state.get("mpv_cache"))
     if cache_description:
         st.caption(cache_description)
     if st.button("Atualizar mercado", use_container_width=True, type="primary"):
         with st.spinner("Buscando mercado do Cartola..."):
-            saved_tokens = st.session_state.get("globo_auth") or {}
-            active_access_token = gm_token.strip() or str(saved_tokens.get("access_token", "")).strip()
+            active_access_token = ""
             live_mpv_map: dict[int, float] = {}
             live_mpv_count = 0
+            latest_cache = load_mpv_cache(remote_config)
+            if latest_cache:
+                st.session_state["mpv_cache"] = latest_cache
             cached_mpv_map = mpv_map_from_cache_payload(st.session_state.get("mpv_cache"))
             used_cached_mpv = False
-            if active_access_token and globo_id_token.strip() and globo_refresh_token.strip():
-                source_marker = globo_refresh_token.strip()
-                if st.session_state.get("globo_auth_source") != source_marker:
-                    st.session_state["globo_auth"] = {
-                        "access_token": active_access_token,
+            supplied_tokens = [gm_token.strip(), globo_id_token.strip(), globo_refresh_token.strip()]
+            if any(supplied_tokens):
+                if all(supplied_tokens):
+                    new_tokens = {
+                        "access_token": gm_token.strip(),
                         "id_token": globo_id_token.strip(),
-                        "refresh_token": source_marker,
+                        "refresh_token": globo_refresh_token.strip(),
                     }
-                    st.session_state["globo_auth_source"] = source_marker
-            if st.session_state.get("globo_auth"):
-                try:
-                    st.session_state["globo_auth"] = refresh_globo_tokens(**st.session_state["globo_auth"])
-                    save_globo_auth(st.session_state["globo_auth"], remote_config)
-                    active_access_token = st.session_state["globo_auth"]["access_token"]
-                    st.caption("Token renovado e salvo automaticamente pela Globo.")
-                except Exception as exc:
-                    fallback_access_token = str(st.session_state["globo_auth"].get("access_token", "")).strip()
-                    if fallback_access_token:
-                        active_access_token = fallback_access_token
-                        st.warning(
-                            "Não foi possível renovar o token; tentando o access token salvo. "
-                            f"Detalhe: {exc}"
-                        )
-                    else:
-                        st.warning(
-                            "Não foi possível renovar o token e não há access token salvo para fallback. "
-                            f"Detalhe: {exc}"
-                        )
+                    save_globo_auth(new_tokens, remote_config)
+                    active_access_token = new_tokens["access_token"]
+                    st.caption("Tokens salvos. A partir de agora, somente o robô fará a renovação.")
+                else:
+                    st.warning("Para substituir a sessão, preencha os três tokens.")
             if not active_access_token:
                 if cached_mpv_map:
                     used_cached_mpv = True
                     st.caption("Usando o cache automático de MPV salvo.")
                 else:
-                    st.warning("Mercado público será carregado sem MPV. Para puxar mínimo para valorizar, conecte a conta Globo.")
+                    st.warning("Mercado público será carregado sem MPV. Conecte a conta Globo para iniciar o cache automático.")
             else:
                 live_mpv_map = fetch_mpv_map(active_access_token)
                 live_mpv_count = count_mpv_values(live_mpv_map)
