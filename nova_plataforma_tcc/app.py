@@ -29,6 +29,11 @@ from src.utils import display_profile_label, normalize_text, order_indication_pl
 ROUNDS_FILE = ROOT_PROJECT_DIR / "RODADAS_BRASILEIRAO_2026.txt"
 PHOTOS_FILE = ROOT_PROJECT_DIR / "tcc_fotos_jogadores.html"
 EXPORT_POSITION_ORDER = list(POSITION_CONFIG.keys())
+INDICATION_ORDER_HELP = (
+    "Ordem automática por posição: 1º Unanimidade → 2º Bom capitão → "
+    "3º Bom RL/Luxo → 4º Confiança A, B, C e D. "
+    "A mesma regra é aplicada às listas e às artes; em empate, prevalece a ordem manual."
+)
 
 st.set_page_config(page_title="Central de Dicas TCC + MD3", page_icon="⚽", layout="wide")
 
@@ -531,6 +536,7 @@ with tab_quick:
         st.divider()
         st.subheader("Indicadores TCC")
         st.caption("Configure confiança, destaques e perfis do TCC.")
+        st.info(INDICATION_ORDER_HELP)
         for edit_position in POSITION_CONFIG:
             players = st.session_state[position_storage_key(edit_position)]
             if not players:
@@ -607,6 +613,7 @@ with tab_quick:
         st.divider()
         st.subheader("Indicadores MD3")
         st.caption("Os indicadores do MD3 são independentes dos indicadores do TCC.")
+        st.info(INDICATION_ORDER_HELP)
         for edit_position in POSITION_CONFIG:
             md3_players = st.session_state[md3_storage_key(edit_position)]
             if not md3_players:
@@ -754,6 +761,7 @@ with tab_editor:
 
     st.divider()
     st.subheader("Lista atual")
+    st.caption(INDICATION_ORDER_HELP)
     if not current_cards:
         st.info("Nenhum jogador adicionado nesta posição.")
     else:
