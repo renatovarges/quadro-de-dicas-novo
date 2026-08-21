@@ -109,25 +109,15 @@ def display_profile_label(profile_name: str) -> str:
     }.get(profile_name, profile_name)
 
 
-def player_attribute_count(player: dict) -> int:
-    profiles = {str(profile) for profile in player.get("profiles", []) if profile}
-    badges = player.get("badges", {}) or {}
-    badge_count = sum(
-        1
-        for badge_name in ("bom_rl", "bom_capitao")
-        if bool(badges.get(badge_name, False))
-    )
-    return len(profiles) + badge_count
-
-
 def indication_player_sort_key(player: dict, original_index: int = 0) -> tuple:
     badges = player.get("badges", {}) or {}
     confidence_order = {"A": 0, "B": 1, "C": 2, "D": 3}
     confidence = str(player.get("confidence", "A")).upper()
     return (
         0 if badges.get("unanimidade") else 1,
+        0 if badges.get("bom_capitao") else 1,
+        0 if badges.get("bom_rl") else 1,
         confidence_order.get(confidence, 99),
-        -player_attribute_count(player),
         original_index,
     )
 
