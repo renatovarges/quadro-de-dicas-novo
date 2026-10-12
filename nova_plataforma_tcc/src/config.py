@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from .brand import BRAND
+
 
 ROOT_PROJECT_DIR = Path(__file__).resolve().parents[2]
 ASSETS_DIR = ROOT_PROJECT_DIR / "assets"
@@ -20,8 +22,8 @@ def _latest_scouts_file() -> Path:
 
 DEFAULT_EXCEL_FILE = _latest_scouts_file()
 BACKGROUND_FILE = LOGOS_DIR / "background.png"
-MAIN_LOGO_FILE = LOGOS_DIR / "logo_tcc.png"
-MAIN_LOGO_WHITE_FILE = LOGOS_DIR / "logo_tcc_branco.png"
+MAIN_LOGO_FILE = LOGOS_DIR / BRAND.logo_file
+MAIN_LOGO_WHITE_FILE = LOGOS_DIR / BRAND.logo_white_file
 PLAYER_PHOTOS_DIR = ASSETS_DIR / "players"
 PHOTO_OVERRIDES_FILE = ASSETS_DIR / "photo_overrides.json"
 # Contas de hospedagem que deixaram de existir (Cloudinary respondeu "cloud_name ddrygy9bm is disabled").

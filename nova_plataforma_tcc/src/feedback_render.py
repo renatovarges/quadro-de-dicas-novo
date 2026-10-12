@@ -4,6 +4,7 @@ from __future__ import annotations
 from html import escape
 from typing import Callable
 
+from .brand import BRAND
 from .config import BACKGROUND_FILE, FONT_BLACK_FILE, FONT_BOLD_FILE, FONT_MEDIUM_FILE, FONT_REGULAR_FILE, MAIN_LOGO_FILE
 from .feedback import DEFAULT_FORMATION, FORMATIONS, POSITION_ORDER
 from .photos import photo_data_uri, prefetch_photos
@@ -26,6 +27,12 @@ def fmt(value: float | None, decimals: int = 1) -> str:
     return f"{value:.{decimals}f}".replace(".", ",")
 
 
+def _bg_css() -> str:
+    if BRAND.art_bg == "image":
+        return f"url(data:image/png;base64,{file_to_base64(BACKGROUND_FILE)}) center/cover"
+    return BRAND.art_bg
+
+
 def _base_css() -> str:
     fonts = {
         "REG": (FONT_REGULAR_FILE, 400),
@@ -40,7 +47,7 @@ def _base_css() -> str:
     return faces + """
     * { box-sizing: border-box; }
     body { margin: 0; background: #f4f2ed; font-family: 'Barlow', sans-serif; -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
-    .art { margin: 0 auto; padding: 28px 36px 30px; background-image: url(data:image/png;base64,__BG__); background-size: cover; color: #0f5d00; }
+    .art { margin: 0 auto; padding: 28px 36px 30px; background: __BGCSS__; color: __TEXT__; }
     .hero { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 18px; margin-bottom: 20px; }
     .hero-logo { width: 140px; justify-self: center; }
     .hero-copy { text-align: center; }
@@ -51,11 +58,27 @@ def _base_css() -> str:
     .badge { position: absolute; width: 36px; height: 36px; right: -4px; bottom: -2px; border-radius: 50%; background: #fff; border: 2px solid #d6d6d6; object-fit: contain; padding: 3px; }
     .legend { margin-top: 16px; display: flex; justify-content: center; gap: 26px; font-size: 17px; font-weight: 700; flex-wrap: wrap; }
     .legend i { display: inline-block; width: 16px; height: 16px; border-radius: 50%; margin-right: 7px; vertical-align: -2px; }
-    """.replace("__BG__", file_to_base64(BACKGROUND_FILE))
+    """.replace("__BGCSS__", _bg_css()).replace("__TEXT__", BRAND.art_text)
+
+
+def _themed(css: str) -> str:
+    return (
+        css.replace("__CARD__", BRAND.art_card)
+        .replace("__ACCENT__", BRAND.art_accent)
+        .replace("__ACCENTTEXT__", "#0f5d00" if BRAND.key == "tcc" else "#7a5c00")
+    )
 
 
 def _logo() -> str:
-    return f'<img class="hero-logo" src="data:image/png;base64,{file_to_base64(MAIN_LOGO_FILE)}" alt="TCC">'
+    note = (
+        f'<div style="color:{BRAND.art_accent};font-size:12px;font-weight:700;letter-spacing:2px;'
+        f'text-transform:uppercase;font-style:italic;text-align:center;margin-top:6px;white-space:nowrap">{BRAND.hero_note}</div>'
+        if BRAND.hero_note else ""
+    )
+    return (
+        f'<div style="justify-self:center"><img class="hero-logo" '
+        f'src="data:image/png;base64,{file_to_base64(MAIN_LOGO_FILE)}" alt="logo">{note}</div>'
+    )
 
 
 def _photo(player: dict, resolver: PhotoResolver, size_class: str = "") -> str:
@@ -79,17 +102,18 @@ def _collect_urls(players: list[dict], resolver: PhotoResolver) -> None:
 # ------------------------------------------------------------------ resumo horizontal ---------
 
 SUMMARY_CSS = """
+
     .art.wide { width: 1800px; }
     .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
-    .stat { background: #0f5d00; color: #fff; border: 3px solid #f5f5f0; border-radius: 16px; padding: 10px 14px; text-align: center; }
+    .stat { background: __CARD__; color: #fff; border: 3px solid #f5f5f0; border-radius: 16px; padding: 10px 14px; text-align: center; }
     .stat b { display: block; font-size: 40px; font-weight: 900; line-height: 1; }
     .stat span { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
     .stat small { display: block; font-size: 14px; opacity: .9; margin-top: 3px; }
     .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-    .team-box { background: #0f5d00; border: 3px solid #f5f5f0; border-radius: 20px; padding: 14px 16px 16px; color: #fff; }
+    .team-box { background: __CARD__; border: 3px solid #f5f5f0; border-radius: 20px; padding: 14px 16px 16px; color: #fff; }
     .team-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 6px 8px; }
     .team-head h2 { margin: 0; font-size: 30px; font-weight: 900; text-transform: uppercase; }
-    .team-head .tot { font-size: 36px; font-weight: 900; color: #ffc61e; }
+    .team-head .tot { font-size: 36px; font-weight: 900; color: __ACCENT__; }
     .team-head .tot small { font-size: 15px; color: #fff; font-weight: 700; }
     .pitch { position: relative; background:
         repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 70px, rgba(255,255,255,0) 70px 140px), #167a1c;
@@ -105,7 +129,7 @@ SUMMARY_CSS = """
     .pl .tag { position: absolute; top: -8px; right: 20px; background: #ffc61e; color: #241108; font-size: 12px; font-weight: 900; padding: 2px 7px; border-radius: 8px; z-index: 2; text-transform: uppercase; }
     .pl.hit .photo { border-color: #ffc61e; box-shadow: 0 0 0 4px rgba(255,198,30,.55); }
     .pl .pos { font-size: 12px; font-weight: 700; opacity: .85; text-transform: uppercase; }
-    .forms { margin-top: 16px; background: #0f5d00; color: #fff; border: 3px solid #f5f5f0; border-radius: 16px; padding: 12px 18px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .forms { margin-top: 16px; background: __CARD__; color: #fff; border: 3px solid #f5f5f0; border-radius: 16px; padding: 12px 18px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
     .forms h3 { margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; }
     .fchip { background: rgba(255,255,255,.14); border-radius: 10px; padding: 6px 12px; font-size: 20px; font-weight: 800; }
     .fchip.best { background: #ffc61e; color: #241108; }
@@ -180,7 +204,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     )
     mine_bonus = f' <small>(inclui {fmt(mine["captain_bonus"])} do capitão)</small>' if mine.get("captain_bonus") else ""
 
-    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{SUMMARY_CSS}</style></head>
+    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(SUMMARY_CSS)}</style></head>
     <body><div class="art wide" id="capture">
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title">COMO FORAM MINHAS INDICAÇÕES</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]} - resultado</div></div></header>
@@ -201,7 +225,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
 
 PANEL_CSS = """
     .art.panel { width: 1080px; }
-    .fcard { display: grid; grid-template-columns: 150px 1fr 170px; gap: 14px; align-items: center; background: #0f5d00; border: 3px solid #f5f5f0; border-radius: 18px; color: #fff; padding: 12px 16px 12px 12px; margin-bottom: 14px; position: relative; }
+    .fcard { display: grid; grid-template-columns: 150px 1fr 170px; gap: 14px; align-items: center; background: __CARD__; border: 3px solid #f5f5f0; border-radius: 18px; color: #fff; padding: 12px 16px 12px 12px; margin-bottom: 14px; position: relative; }
     .fcard .who { text-align: center; }
     .fcard .ph-wrap { position: relative; width: 100px; margin: 0 auto; }
     .fcard .nm { margin: 6px auto 0; background: #f7efe7; color: #2d1908; font-weight: 800; font-size: 17px; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; white-space: nowrap; overflow: hidden; max-width: 146px; }
@@ -217,7 +241,7 @@ PANEL_CSS = """
     .ck small { display: block; font-size: 12px; font-weight: 500; opacity: .8; }
     .res { text-align: center; background: rgba(247,239,231,.96); color: #241108; border-radius: 14px; padding: 8px 6px 8px; }
     .res .big { font-size: 46px; font-weight: 900; line-height: 1; }
-    .res .lbl { font-size: 12px; font-weight: 800; text-transform: uppercase; color: #0f5d00; }
+    .res .lbl { font-size: 12px; font-weight: 800; text-transform: uppercase; color: __ACCENTTEXT__; }
     .res .sub { font-size: 14px; font-weight: 700; margin-top: 3px; }
     .res .tier { margin-top: 5px; color: #fff; font-size: 13px; font-weight: 900; border-radius: 7px; padding: 2px 4px; text-transform: uppercase; }
     .fcard.dnp { opacity: .72; }
@@ -270,7 +294,7 @@ def build_position_panel_html(evaluation: dict, position_key: str, resolver: Pho
     players.sort(key=lambda p: (not p["played"], -(p["points"] or 0)))
     _collect_urls(players, resolver)
     cards = "".join(_result_card(p, resolver) for p in players) or '<div class="empty">Nenhum jogador indicado nesta posição.</div>'
-    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{PANEL_CSS}</style></head>
+    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}</style></head>
     <body><div class="art panel" id="capture">
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title" style="font-size:56px">RESULTADO - {position_key.upper()}</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]}</div></div></header>

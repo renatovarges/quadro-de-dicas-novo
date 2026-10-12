@@ -14,6 +14,9 @@ from .auth_store import AUTH_DIR, _load_remote_payload, _save_remote_payload, _r
 
 
 def _record_id(kind: str, project: str, round_number: int) -> str:
+    """Indicações são por marca (tcc/guardiola); a pontuação real da rodada é a mesma para todos."""
+    if kind == "resultado":
+        return f"resultado_r{int(round_number):02d}"
     return f"{kind}_{project}_r{int(round_number):02d}"
 
 

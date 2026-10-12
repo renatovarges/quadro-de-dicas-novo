@@ -21,6 +21,7 @@ from src.data_sources import (
     load_rounds_file,
     mpv_map_from_cache_payload,
 )
+from src.brand import BRAND
 from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes, export_htmls_to_png
 from src.feedback_ui import render_feedback_tab
 from src.photos import photo_data_uri
@@ -38,7 +39,11 @@ INDICATION_ORDER_HELP = (
     "A mesma regra é aplicada às listas e às artes; em empate, prevalece a ordem manual."
 )
 
-st.set_page_config(page_title="Central de Dicas TCC + MD3", page_icon="⚽", layout="wide")
+HAS_MD3 = BRAND.has_md3
+HAS_FORA20 = BRAND.has_fora_dos_20
+BRAND_LABEL = BRAND.key.upper() if BRAND.key == "tcc" else BRAND.key.title()
+
+st.set_page_config(page_title=BRAND.title, page_icon="⚽", layout="wide")
 
 
 def get_remote_auth_config() -> dict[str, str] | None:
@@ -164,6 +169,7 @@ def ensure_state():
         st.session_state.setdefault(f"una_{position_key}", False)
         st.session_state.setdefault(f"cap_{position_key}", False)
         st.session_state.setdefault(f"rl_{position_key}", False)
+        st.session_state.setdefault(f"fora20_{position_key}", False)
         st.session_state.setdefault(f"pending_reset_{position_key}", False)
         for profile_name in POSITION_CONFIG[position_key]["profiles"]:
             st.session_state.setdefault(f"profile_{position_key}_{profile_name}", False)
@@ -233,7 +239,7 @@ def market_row_to_player(row: dict) -> dict:
         "mpv": float(row.get("minimo_valorizar", 0.0)),
         "confidence": "A",
         "profiles": [],
-        "badges": {"unanimidade": False, "bom_capitao": False, "bom_rl": False},
+        "badges": {"unanimidade": False, "bom_capitao": False, "bom_rl": False, "fora_dos_20": False},
     }
 
 
@@ -309,6 +315,7 @@ def build_indications_export_df(target_round: int) -> pd.DataFrame:
                     "unanimidade": bool(player.get("badges", {}).get("unanimidade", False)),
                     "bom_capitao": bool(player.get("badges", {}).get("bom_capitao", False)),
                     "bom_rl": bool(player.get("badges", {}).get("bom_rl", False)),
+                    "fora_dos_20": bool(player.get("badges", {}).get("fora_dos_20", False)),
                     "confianca": player.get("confidence", ""),
                     "perfis": "|".join(player.get("profiles", [])),
                     "preco": float(player.get("price", 0.0)),
@@ -343,9 +350,11 @@ def render_quick_selection(quick_position: str, status_filter: list[str]) -> Non
     edited = st.data_editor(
         quick_df[["TCC", "MD3", "atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"]],
         hide_index=True,
+        column_order=["TCC", "MD3", "nome", "time", "status", "preco", "minimo_valorizar"] if HAS_MD3
+        else ["TCC", "nome", "time", "status", "preco", "minimo_valorizar"],
         disabled=["atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"],
         column_config={
-            "TCC": st.column_config.CheckboxColumn("TCC"),
+            "TCC": st.column_config.CheckboxColumn(BRAND_LABEL if HAS_MD3 else "Indicar"),
             "MD3": st.column_config.CheckboxColumn("MD3"),
             "atleta_id": None,
             "nome": "Jogador", "time": "Clube", "status": "Status",
@@ -372,7 +381,10 @@ def render_quick_selection(quick_position: str, status_filter: list[str]) -> Non
             sort_players_state(state_key)
         tcc_count = len(st.session_state[position_storage_key(quick_position)])
         md3_count = len(st.session_state[md3_storage_key(quick_position)])
-        st.toast(f"{quick_position}: {tcc_count} no TCC e {md3_count} no MD3.")
+        st.toast(
+            f"{quick_position}: {tcc_count} no TCC e {md3_count} no MD3." if HAS_MD3
+            else f"{quick_position}: {tcc_count} indicado(s)."
+        )
         st.rerun()  # reexecuta a página inteira para atualizar as listas de indicadores abaixo
 
 
@@ -415,7 +427,7 @@ def render_position_pngs(positions: list[str], scale: float = 4) -> list[tuple[s
 ensure_state()
 sort_all_indication_lists()
 
-st.title("Central de Dicas TCC + MD3")
+st.title(BRAND.title)
 st.caption(f"Projeto base em `{ROOT_PROJECT_DIR}`")
 
 rounds_data = get_rounds()
@@ -579,12 +591,14 @@ if st.session_state.get(f"pending_reset_{position_key}", False):
     st.session_state[f"una_{position_key}"] = False
     st.session_state[f"cap_{position_key}"] = False
     st.session_state[f"rl_{position_key}"] = False
+    st.session_state[f"fora20_{position_key}"] = False
     for profile_name in POSITION_CONFIG[position_key]["profiles"]:
         st.session_state[f"profile_{position_key}_{profile_name}"] = False
     st.session_state[f"pending_reset_{position_key}"] = False
 
 tab_quick, tab_editor, tab_preview, tab_summaries, tab_feedback = st.tabs(
-    ["Seleção rápida", "Editor detalhado TCC", "Premium TCC", "Resumos TCC e MD3", "Feedback da rodada"]
+    ["Seleção rápida", f"Editor detalhado {BRAND_LABEL}", f"Premium {BRAND_LABEL}",
+     "Resumos TCC e MD3" if HAS_MD3 else f"Resumo {BRAND_LABEL}", "Feedback da rodada"]
 )
 
 with tab_quick:
@@ -605,8 +619,8 @@ with tab_quick:
                 render_quick_selection(quick_position, status_filter)
 
         st.divider()
-        st.subheader("Indicadores TCC")
-        st.caption("Configure confiança, destaques e perfis do TCC.")
+        st.subheader(f"Indicadores {BRAND_LABEL}")
+        st.caption(f"Configure confiança, destaques e perfis do {BRAND_LABEL}.")
         st.info(INDICATION_ORDER_HELP)
         for edit_position in POSITION_CONFIG:
             players = st.session_state[position_storage_key(edit_position)]
@@ -614,10 +628,10 @@ with tab_quick:
                 continue
             with st.expander(f"{edit_position} ({len(players)})"):
                 profile_options = POSITION_CONFIG[edit_position]["profiles"]
-                column_widths = [2.4, 0.8, 0.8, 0.9, 0.8] + [1.0] * len(profile_options)
+                column_widths = [2.4, 0.8, 0.8, 0.9, 0.8] + [1.0] * len(profile_options) + ([1.0] if HAS_FORA20 else [])
                 header_labels = ["Jogador", "Conf.", "Unân.", "Capitão", "Bom RL"] + [
                     display_profile_label(profile) for profile in profile_options
-                ]
+                ] + (["Fora 20+"] if HAS_FORA20 else [])
                 header_columns = st.columns(column_widths)
                 for column, label in zip(header_columns, header_labels):
                     column.caption(label)
@@ -654,6 +668,14 @@ with tab_quick:
                             key=f"quick_rl_{edit_position}_{player_key}",
                             label_visibility="collapsed",
                         )
+                        fora20 = False
+                        if HAS_FORA20:
+                            fora20 = row_columns[5 + len(profile_options)].checkbox(
+                                f"Fora dos 20+ - {player['name']}",
+                                value=bool(player.get("badges", {}).get("fora_dos_20", False)),
+                                key=f"quick_fora20_{edit_position}_{player_key}",
+                                label_visibility="collapsed",
+                            )
                         selected_profiles = []
                         for profile_idx, profile in enumerate(profile_options):
                             if row_columns[5 + profile_idx].checkbox(
@@ -671,6 +693,7 @@ with tab_quick:
                                     "unanimidade": unanimity,
                                     "bom_capitao": captain,
                                     "bom_rl": good_rl,
+                                    "fora_dos_20": fora20,
                                 },
                             }
                         )
@@ -681,69 +704,70 @@ with tab_quick:
                     sort_players_state(position_storage_key(edit_position))
                     st.success("Confianças, destaques e perfis salvos.")
 
-        st.divider()
-        st.subheader("Indicadores MD3")
-        st.caption("Os indicadores do MD3 são independentes dos indicadores do TCC.")
-        st.info(INDICATION_ORDER_HELP)
-        for edit_position in POSITION_CONFIG:
-            md3_players = st.session_state[md3_storage_key(edit_position)]
-            if not md3_players:
-                continue
-            with st.expander(f"{edit_position} · MD3 ({len(md3_players)})"):
-                widths = [2.8, 1.0, 1.0, 1.0, 1.0]
-                headers = st.columns(widths)
-                for column, label in zip(headers, ["Jogador", "Conf.", "Unân.", "Capitão", "Luxo"]):
-                    column.caption(label)
-                pending_md3: list[dict] = []
-                with st.form(f"md3_indicator_form_{edit_position}"):
-                    for idx, player in enumerate(md3_players):
-                        player_key = player_ui_key(player, idx)
-                        columns = st.columns(widths)
-                        columns[0].markdown(f'**{player["name"]}**  \n{player["team"]}')
-                        current_confidence = player.get("confidence", "A")
-                        confidence = columns[1].selectbox(
-                            f"Confiança MD3 de {player['name']}",
-                            options=["A", "B", "C", "D"],
-                            index=["A", "B", "C", "D"].index(current_confidence) if current_confidence in ["A", "B", "C", "D"] else 0,
-                            key=f"md3_conf_{edit_position}_{player_key}",
-                            label_visibility="collapsed",
+        if HAS_MD3:
+            st.divider()
+            st.subheader("Indicadores MD3")
+            st.caption("Os indicadores do MD3 são independentes dos indicadores do TCC.")
+            st.info(INDICATION_ORDER_HELP)
+            for edit_position in POSITION_CONFIG:
+                md3_players = st.session_state[md3_storage_key(edit_position)]
+                if not md3_players:
+                    continue
+                with st.expander(f"{edit_position} · MD3 ({len(md3_players)})"):
+                    widths = [2.8, 1.0, 1.0, 1.0, 1.0]
+                    headers = st.columns(widths)
+                    for column, label in zip(headers, ["Jogador", "Conf.", "Unân.", "Capitão", "Luxo"]):
+                        column.caption(label)
+                    pending_md3: list[dict] = []
+                    with st.form(f"md3_indicator_form_{edit_position}"):
+                        for idx, player in enumerate(md3_players):
+                            player_key = player_ui_key(player, idx)
+                            columns = st.columns(widths)
+                            columns[0].markdown(f'**{player["name"]}**  \n{player["team"]}')
+                            current_confidence = player.get("confidence", "A")
+                            confidence = columns[1].selectbox(
+                                f"Confiança MD3 de {player['name']}",
+                                options=["A", "B", "C", "D"],
+                                index=["A", "B", "C", "D"].index(current_confidence) if current_confidence in ["A", "B", "C", "D"] else 0,
+                                key=f"md3_conf_{edit_position}_{player_key}",
+                                label_visibility="collapsed",
+                            )
+                            unanimity = columns[2].checkbox(
+                                f"Unanimidade MD3 - {player['name']}",
+                                value=bool(player.get("badges", {}).get("unanimidade", False)),
+                                key=f"md3_una_{edit_position}_{player_key}",
+                                label_visibility="collapsed",
+                            )
+                            captain = columns[3].checkbox(
+                                f"Bom capitão MD3 - {player['name']}",
+                                value=bool(player.get("badges", {}).get("bom_capitao", False)),
+                                key=f"md3_cap_{edit_position}_{player_key}",
+                                label_visibility="collapsed",
+                            )
+                            luxury = columns[4].checkbox(
+                                f"Luxo MD3 - {player['name']}",
+                                value=bool(player.get("badges", {}).get("bom_rl", False)),
+                                key=f"md3_rl_{edit_position}_{player_key}",
+                                label_visibility="collapsed",
+                            )
+                            pending_md3.append(
+                                {
+                                    "confidence": confidence,
+                                    "badges": {
+                                        "unanimidade": unanimity,
+                                        "bom_capitao": captain,
+                                        "bom_rl": luxury,
+                                    },
+                                }
+                            )
+                        submitted_md3 = st.form_submit_button(
+                            "Salvar indicadores MD3", use_container_width=True, type="primary"
                         )
-                        unanimity = columns[2].checkbox(
-                            f"Unanimidade MD3 - {player['name']}",
-                            value=bool(player.get("badges", {}).get("unanimidade", False)),
-                            key=f"md3_una_{edit_position}_{player_key}",
-                            label_visibility="collapsed",
-                        )
-                        captain = columns[3].checkbox(
-                            f"Bom capitão MD3 - {player['name']}",
-                            value=bool(player.get("badges", {}).get("bom_capitao", False)),
-                            key=f"md3_cap_{edit_position}_{player_key}",
-                            label_visibility="collapsed",
-                        )
-                        luxury = columns[4].checkbox(
-                            f"Luxo MD3 - {player['name']}",
-                            value=bool(player.get("badges", {}).get("bom_rl", False)),
-                            key=f"md3_rl_{edit_position}_{player_key}",
-                            label_visibility="collapsed",
-                        )
-                        pending_md3.append(
-                            {
-                                "confidence": confidence,
-                                "badges": {
-                                    "unanimidade": unanimity,
-                                    "bom_capitao": captain,
-                                    "bom_rl": luxury,
-                                },
-                            }
-                        )
-                    submitted_md3 = st.form_submit_button(
-                        "Salvar indicadores MD3", use_container_width=True, type="primary"
-                    )
-                if submitted_md3:
-                    for player, values in zip(md3_players, pending_md3):
-                        player.update(values)
-                    sort_players_state(md3_storage_key(edit_position))
-                    st.success("Indicadores do MD3 salvos.")
+                    if submitted_md3:
+                        for player, values in zip(md3_players, pending_md3):
+                            player.update(values)
+                        sort_players_state(md3_storage_key(edit_position))
+                        st.success("Indicadores do MD3 salvos.")
 
 with tab_editor:
     st.subheader(f"Editor de {position_key}")
@@ -793,10 +817,13 @@ with tab_editor:
         confidence = c5.select_slider("Confiança", options=["A", "B", "C", "D"], key=f"conf_{position_key}")
 
         st.caption("Destaques")
-        b1, b2, b3 = st.columns(3)
-        badge_unanimity = b1.checkbox("Unanimidade", key=f"una_{position_key}")
-        badge_captain = b2.checkbox("Bom Capitão", key=f"cap_{position_key}")
-        badge_rl = b3.checkbox("Bom RL", key=f"rl_{position_key}")
+        badge_columns = st.columns(4 if HAS_FORA20 else 3)
+        badge_unanimity = badge_columns[0].checkbox("Unanimidade", key=f"una_{position_key}")
+        badge_captain = badge_columns[1].checkbox("Bom Capitão", key=f"cap_{position_key}")
+        badge_rl = badge_columns[2].checkbox("Bom RL", key=f"rl_{position_key}")
+        badge_fora20 = (
+            badge_columns[3].checkbox("Fora dos 20+", key=f"fora20_{position_key}") if HAS_FORA20 else False
+        )
 
         st.caption("Perfis")
         selected_profiles = []
@@ -823,6 +850,7 @@ with tab_editor:
                             "unanimidade": badge_unanimity,
                             "bom_capitao": badge_captain,
                             "bom_rl": badge_rl,
+                            "fora_dos_20": badge_fora20,
                         },
                     },
                 )
@@ -968,7 +996,11 @@ with tab_preview:
                         if has_md3_cards:
                             summary_projects.append(("md3", "MD3"))
                         summary_htmls = [
-                            build_summary_html(project, target_round, players_by_position(project))
+                            build_summary_html(
+                                BRAND.summary_theme if project == "tcc" else project,
+                                target_round,
+                                players_by_position(project),
+                            )
                             for project, _ in summary_projects
                         ]
                         summary_items = export_htmls_to_png(summary_htmls, 3)
@@ -1013,29 +1045,34 @@ with tab_preview:
         st.info("Monte a lista e clique em gerar visualização.")
 
 with tab_summaries:
-    st.subheader("Resumos gerais TCC e MD3")
+    st.subheader("Resumos gerais TCC e MD3" if HAS_MD3 else f"Resumo geral {BRAND_LABEL}")
     tcc_total = sum(len(items) for items in players_by_position("tcc").values())
-    md3_total = sum(len(items) for items in players_by_position("md3").values())
+    md3_total = sum(len(items) for items in players_by_position("md3").values()) if HAS_MD3 else 0
     st.caption(
         f"Seleção atual: {tcc_total} jogador(es) no TCC e {md3_total} jogador(es) no MD3. "
         "As alturas das duas artes são ajustadas automaticamente."
+        if HAS_MD3
+        else f"Seleção atual: {tcc_total} jogador(es). A altura da arte é ajustada automaticamente."
     )
 
-    if st.button("Gerar/atualizar os dois resumos", type="primary", use_container_width=True):
+    if st.button(
+        "Gerar/atualizar os dois resumos" if HAS_MD3 else "Gerar/atualizar o resumo",
+        type="primary",
+        use_container_width=True,
+    ):
         st.session_state["tcc_summary_html"] = build_summary_html(
-            "tcc", target_round, players_by_position("tcc")
+            BRAND.summary_theme, target_round, players_by_position("tcc")
         )
-        st.session_state["md3_summary_html"] = build_summary_html(
-            "md3", target_round, players_by_position("md3")
+        st.session_state["md3_summary_html"] = (
+            build_summary_html("md3", target_round, players_by_position("md3")) if HAS_MD3 else None
         )
         st.session_state["tcc_summary_png"] = None
         st.session_state["md3_summary_png"] = None
 
-    summary_columns = st.columns(2)
-    summary_specs = [
-        ("TCC", "tcc_summary_html", "tcc_summary_png", "tcc"),
-        ("MD3", "md3_summary_html", "md3_summary_png", "md3"),
-    ]
+    summary_specs = [(BRAND_LABEL, "tcc_summary_html", "tcc_summary_png", "tcc")]
+    if HAS_MD3:
+        summary_specs.append(("MD3", "md3_summary_html", "md3_summary_png", "md3"))
+    summary_columns = st.columns(len(summary_specs))
     for column, (label, html_key, png_key, file_slug) in zip(summary_columns, summary_specs):
         with column:
             st.markdown(f"### Resumo {label}")

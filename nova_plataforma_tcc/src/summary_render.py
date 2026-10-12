@@ -41,6 +41,26 @@ def _theme(theme: str) -> dict:
             "rl_class": "round red",
             "material": "MATERIAL EXCLUSIVO – MD3",
         }
+    if theme == "guardiola":
+        return {
+            "key": "guardiola",
+            "brand": "GUARDIOLA",
+            "font_name": "Barlow",
+            "font_file": FONTS_DIR / "barlow" / "Barlow-ExtraBold.ttf",
+            "background": "#f2e1bd",
+            "card": "#000000",
+            "card_border": "#D4AF37",
+            "header": "#000000",
+            "accent": "#D4AF37",
+            "title_text": "#ffffff",
+            "logo": MAIN_LOGO_FILE,
+            "footer_logo": MAIN_LOGO_FILE,
+            "unanimity": "✔",
+            "unanimity_class": "round green",
+            "captain_class": "round red",
+            "rl_class": "round orange",
+            "material": "MATERIAL EXCLUSIVO – VIP GUARDIOLA",
+        }
     return {
         "key": "tcc",
         "brand": "TCC",

@@ -25,7 +25,9 @@ from .indications_store import (
     save_snapshot,
 )
 
-PROJECT = "tcc"
+from .brand import BRAND
+
+PROJECT = BRAND.key
 
 
 def _saved_rounds(remote_config, refresh: bool = False) -> list[int]:

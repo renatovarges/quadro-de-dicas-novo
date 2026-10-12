@@ -1,4 +1,5 @@
 from .config import BACKGROUND_FILE, FONT_BLACK_FILE, FONT_BOLD_FILE, FONT_MEDIUM_FILE, FONT_REGULAR_FILE, MAIN_LOGO_FILE
+from .brand import BRAND
 from .photos import photo_data_uri, prefetch_photos
 from .utils import file_to_base64
 
@@ -106,7 +107,14 @@ def build_preview_html(
     filter_mode: str,
     cards: list[dict],
     include_client_export: bool = False,
+    show_phrase: bool = True,
 ) -> str:
+    if BRAND.card_layout == "guardiola":
+        from .render_guardiola import build_preview_html as build_guardiola_html
+
+        return build_guardiola_html(
+            position_key, target_round, window_n, filter_mode, cards, include_client_export, show_phrase
+        )
     prefetch_photos([card.get("photo_url", "") for card in cards])
     bg_b64 = file_to_base64(BACKGROUND_FILE)
     logo_b64 = file_to_base64(MAIN_LOGO_FILE)
