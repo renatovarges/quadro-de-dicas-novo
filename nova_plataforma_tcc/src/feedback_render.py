@@ -69,6 +69,29 @@ def _themed(css: str) -> str:
     )
 
 
+# Guardiola: artes de FEEDBACK com fundo preto e caixas em bege (escolha do Lucas). Os cards de indicação não mudam.
+GUARDIOLA_FEEDBACK_CSS = """
+.art { background: #000000 !important; color: #ffffff !important; }
+.hero-copy, .hero-title, .hero-subtitle { color: #ffffff !important; }
+.stat, .team-box, .side-box, .forms, .fcard { background: #f2e1bd !important; color: #000000 !important; border-color: #D4AF37 !important; }
+.team-head .tot { color: #6b5200 !important; }
+.team-head .tot small, .stat small { color: #000000 !important; }
+.bar-track { background: rgba(0,0,0,.15) !important; }
+.bar-val { color: #6b5200 !important; }
+.rp.gold { color: #8a6d00 !important; } .rp.good { color: #138a2f !important; } .rp.bad { color: #cf3a34 !important; }
+.fchip { background: rgba(0,0,0,.12) !important; color: #000000 !important; }
+.fchip.best { background: #D4AF37 !important; }
+.fcard .nm { background: #000000 !important; color: #ffffff !important; }
+.fcard .res, .fcard .ck { background: #ffffff !important; }
+.legend { color: #ffffff !important; }
+.rank-row .photo, .fcard .photo { border-color: #000000 !important; }
+"""
+
+
+def _brand_css() -> str:
+    return GUARDIOLA_FEEDBACK_CSS if BRAND.key == "guardiola" else ""
+
+
 def _logo() -> str:
     note = (
         f'<div style="color:{BRAND.art_accent};font-size:12px;font-weight:700;letter-spacing:2px;'
@@ -315,7 +338,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
           {_pitch(cartola, resolver, None, my_ids, "indicado")}</div>
       </div>"""
 
-    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(SUMMARY_CSS)}</style></head>
+    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(SUMMARY_CSS)}{_brand_css()}</style></head>
     <body><div class="art wide" id="capture">{_demo_banner(evaluation)}
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title">COMO FORAM MINHAS INDICAÇÕES</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]} - resultado</div></div></header>
@@ -428,7 +451,7 @@ def build_position_panel_html(
     _collect_urls(players, resolver)
     cards = "".join(_result_card(p, resolver) for p in players) or '<div class="empty">Nenhum jogador indicado nesta posição.</div>'
     suffix = f" ({page}/{pages})" if pages > 1 else ""
-    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}</style></head>
+    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}{_brand_css()}</style></head>
     <body><div class="art panel" id="capture">{_demo_banner(evaluation)}
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title" style="font-size:56px">RESULTADO - {position_key.upper()}{suffix}</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]}</div></div></header>
