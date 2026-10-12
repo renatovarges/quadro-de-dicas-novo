@@ -22,6 +22,7 @@ from src.data_sources import (
     mpv_map_from_cache_payload,
 )
 from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes, export_htmls_to_png
+from src.feedback_ui import render_feedback_tab
 from src.photos import photo_data_uri
 from src.render import build_preview_html
 from src.summary_render import build_summary_html
@@ -582,8 +583,8 @@ if st.session_state.get(f"pending_reset_{position_key}", False):
         st.session_state[f"profile_{position_key}_{profile_name}"] = False
     st.session_state[f"pending_reset_{position_key}"] = False
 
-tab_quick, tab_editor, tab_preview, tab_summaries = st.tabs(
-    ["Seleção rápida", "Editor detalhado TCC", "Premium TCC", "Resumos TCC e MD3"]
+tab_quick, tab_editor, tab_preview, tab_summaries, tab_feedback = st.tabs(
+    ["Seleção rápida", "Editor detalhado TCC", "Premium TCC", "Resumos TCC e MD3", "Feedback da rodada"]
 )
 
 with tab_quick:
@@ -1084,3 +1085,8 @@ with tab_summaries:
             mime="application/zip",
             use_container_width=True,
         )
+
+with tab_feedback:
+    render_feedback_tab(
+        analyzer, players_by_position("tcc"), target_round, window_n, filter_mode, get_remote_auth_config()
+    )
