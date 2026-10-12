@@ -1,1 +1,7 @@
--r nova_plataforma_tcc/requirements.txt
+streamlit
+pandas
+openpyxl
+requests
+playwright
+cryptography
+pillow
