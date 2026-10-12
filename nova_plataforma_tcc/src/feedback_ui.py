@@ -6,6 +6,7 @@ from datetime import datetime
 import streamlit as st
 
 from .brand import BRAND
+from .utils import position_storage_key
 from .exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_htmls_to_png
 from .feedback import (
     POSITION_ORDER,
@@ -16,6 +17,7 @@ from .feedback import (
     missing_history_rounds,
 )
 from .feedback_render import build_all_arts
+from .indications_import import parse_indications_csv
 from .indications_store import (
     archive_latest_round,
     archive_most_escalated,
@@ -200,6 +202,27 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
             "A planilha de scouts cobre as rodadas anteriores; as rodadas novas vêm da API e são arquivadas "
             "automaticamente (aqui e pelo robô do GitHub) para completar o histórico das médias."
         )
+
+    # ---- importar indicações de um CSV (ex.: rodada que já passou) ----
+    with st.expander("Importar indicações de um arquivo CSV (rodada que já foi montada)"):
+        st.caption(
+            "Aceita o mesmo CSV do botão 'Baixar CSV das indicações' (colunas posicao, nome, clube, confianca, perfis, "
+            "unanimidade, bom_capitao, bom_rl). Substitui as listas atuais. Depois escolha a rodada-alvo na barra lateral "
+            "e clique em 'Salvar indicações desta rodada'. Carregue o mercado antes para casar nomes e preços."
+        )
+        uploaded = st.file_uploader("CSV de indicações", type=["csv"], key="fb_import_csv")
+        if uploaded is not None and st.button("Importar para as listas", use_container_width=True):
+            try:
+                imported, warnings = parse_indications_csv(uploaded.getvalue(), st.session_state.get("market_data"))
+                for position_key, items in imported.items():
+                    st.session_state[position_storage_key(position_key)][:] = items
+                st.session_state["fb_imported"] = True
+                st.success("Importado: " + ", ".join(f"{k} {len(v)}" for k, v in imported.items() if v) + ". Reabra a página se as listas não atualizarem.")
+                for warning in warnings:
+                    st.warning(warning)
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Não consegui importar: {exc}")
 
     # ---- 1) fechar indicações ----
     st.markdown("### 1. Fechar as indicações da rodada")
