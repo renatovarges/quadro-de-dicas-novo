@@ -129,6 +129,23 @@ SUMMARY_CSS = """
     .pl .tag { position: absolute; top: -8px; right: 20px; background: #ffc61e; color: #241108; font-size: 12px; font-weight: 900; padding: 2px 7px; border-radius: 8px; z-index: 2; text-transform: uppercase; }
     .pl.hit .photo { border-color: #ffc61e; box-shadow: 0 0 0 4px rgba(255,198,30,.55); }
     .pl .pos { font-size: 12px; font-weight: 700; opacity: .85; text-transform: uppercase; }
+    .side { display: flex; flex-direction: column; gap: 16px; }
+    .side h3 { margin: 0 0 8px; font-size: 24px; font-weight: 900; text-transform: uppercase; }
+    .side-box { background: __CARD__; border: 3px solid #f5f5f0; border-radius: 20px; color: #fff; padding: 14px 18px 16px; }
+    .bar-row { display: grid; grid-template-columns: 210px 1fr 90px; gap: 10px; align-items: center; margin: 7px 0; font-size: 19px; font-weight: 800; }
+    .bar-track { background: rgba(255,255,255,.16); border-radius: 8px; height: 26px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 8px; background: #ffc61e; }
+    .bar-fill.mine { background: #38c172; } .bar-fill.esc { background: #59d9f8; }
+    .bar-val { text-align: right; color: #ffc61e; font-size: 22px; font-weight: 900; }
+    .rank-row { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; margin: 8px 0; }
+    .rank-row .ph-wrap { width: 46px; position: relative; }
+    .rank-row .photo { width: 46px; height: 46px; border-width: 3px; }
+    .rank-row .badge { width: 20px; height: 20px; right: -6px; bottom: -4px; padding: 2px; }
+    .rank-row .rn { font-size: 20px; font-weight: 800; text-transform: uppercase; line-height: 1.05; }
+    .rank-row .rn small { display: block; font-size: 13px; font-weight: 600; opacity: .85; text-transform: none; }
+    .rank-row .rp { font-size: 26px; font-weight: 900; }
+    .rp.good { color: #7CFC8A; } .rp.bad { color: #ff7a72; } .rp.gold { color: #ffc61e; }
+    .fwrap { display: flex; flex-wrap: wrap; gap: 8px; }
     .esc { margin-top: 3px; font-size: 13px; font-weight: 700; opacity: .95; }
     .strip { min-height: 0 !important; flex-direction: row !important; justify-content: space-evenly; align-items: flex-end; padding: 12px 8px 12px; gap: 6px; }
     .strip .sgroup { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -236,6 +253,35 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     )
     mine_bonus = f' <small>(inclui {fmt(mine["captain_bonus"])} do capitão)</small>' if mine.get("captain_bonus") else ""
 
+    def _rank_rows(players: list[dict], css: str) -> str:
+        rows = []
+        for player in players:
+            rows.append(
+                f'<div class="rank-row"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
+                f'<div class="rn">{escape(abbreviate_player_name(player["name"], 16))}<small>{escape(player["position"][:-1] if player["position"].endswith("s") else player["position"])}</small></div>'
+                f'<div class="rp {css}">{fmt(player["points"])}</div></div>'
+            )
+        return "".join(rows) or '<div style="opacity:.8">-</div>'
+
+    scoreboard = [("Minha seleção", mine["total"], "mine")]
+    if escalated:
+        scoreboard.append(("Mais escalados", escalated["total"], "esc"))
+    scoreboard.append(("Seleção da rodada", cartola["total"], ""))
+    top_total = max(total for _, total, _ in scoreboard) or 1
+    bars_html = "".join(
+        f'<div class="bar-row"><span>{label}</span><div class="bar-track"><div class="bar-fill {css}" '
+        f'style="width:{max(2, 100 * total / top_total):.0f}%"></div></div><span class="bar-val">{fmt(total)}</span></div>'
+        for label, total, css in scoreboard
+    )
+    best_rows = _rank_rows(summary["best"], "gold")
+    worst_rows = _rank_rows(summary["worst"], "bad") if summary["worst"] else ""
+    worst_box = f'<div class="side-box"><h3>Piores indicações</h3>{worst_rows}</div>' if worst_rows else ""
+    forms_box = f'<div class="side-box"><h3>Outras formações</h3><div class="fwrap">{"".join(chips)}</div><div style="margin-top:8px;font-weight:700">{forms_note}</div></div>'
+    side_html = (
+        f'<div class="side"><div class="side-box"><h3>Placar da rodada (pontos)</h3>{bars_html}</div>'
+        f'<div class="side-box"><h3>Melhores indicações</h3>{best_rows}</div>{worst_box}{forms_box}</div>'
+    )
+
     captain_source_note = ""
     if escalated and escalated.get("captain_id") is not None:
         captain_source_note = (
@@ -243,6 +289,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
             + (f" - {escalated['captain_note']}" if escalated.get("captain_note") else "")
             + "</span>"
         )
+    forms_bar_html = f'<div class="forms"><h3>Outras formações</h3>{"".join(chips)}<span style="font-weight:700">{forms_note}</span></div>'
     if escalated:
         escalated_ids = {p["athlete_id"] for p in escalated["players"]}
         if escalated.get("captain_id") is not None:
@@ -255,8 +302,11 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
         <div class="team-box"><div class="team-head"><h2>Mais escalados</h2><div class="tot">{fmt(escalated["total"])} pts <small>{escalated_cap_text}</small></div></div>
           {_pitch(escalated, resolver, escalated.get("captain_id"), my_ids, "indicado", show_count=True)}</div>
       </div>
-      <div class="team-box" style="margin-top:22px"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
-        {_strip(cartola, resolver, my_ids, "indicado")}</div>"""
+      <div class="teams" style="margin-top:22px">
+        <div class="team-box"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
+          {_pitch(cartola, resolver, None, my_ids, "indicado")}</div>
+        {side_html}
+      </div>"""
     else:
         teams_html = f"""<div class="teams">
         <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
@@ -271,7 +321,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
         <div class="hero-subtitle">Rodada {evaluation["round"]} - resultado</div></div></header>
       <div class="stats">{stats_html}</div>
       {teams_html}
-      <div class="forms"><h3>Outras formações</h3>{"".join(chips)}<span style="font-weight:700">{forms_note}</span></div>
+      {"" if escalated else forms_bar_html}
       <footer class="legend"><span><i style="background:#ffc61e"></i>Indicado que entrou na seleção do Cartola</span>
         <span><i style="background:#38c172"></i>Capitão (pontuação x1,5)</span><span><i style="background:#e0a100"></i>Mitou: mais de 10 pts</span>{captain_source_note}</footer>
     </div></body></html>"""
