@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from io import BytesIO
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -28,43 +30,69 @@ def resolve_browser_path() -> Path | None:
     return None
 
 
-def export_html_to_png_bytes(html: str, scale: int = 3) -> bytes:
+@dataclass
+class PngExport:
+    png: bytes
+    scale: float
+    requested_scale: float
+    width: int
+    height: int
+    broken_images: list[str]
+
+    @property
+    def scale_reduced(self) -> bool:
+        return self.scale + 0.01 < self.requested_scale
+
+
+def export_htmls_to_png(htmls: list[str], scale: float = 4) -> list[PngExport]:
+    """Renderiza várias artes em UMA sessão do navegador (mais rápido e estável que uma por vez)."""
+    if not htmls:
+        return []
     browser_path = resolve_browser_path()
     worker_path = Path(__file__).with_name("exporter_worker.py")
 
     with TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
-        html_path = temp_dir_path / "preview_export.html"
-        png_path = temp_dir_path / "preview_export.png"
-        html_path.write_text(html, encoding="utf-8")
+        jobs = []
+        for index, html in enumerate(htmls):
+            html_path = temp_dir_path / f"arte_{index}.html"
+            html_path.write_text(html, encoding="utf-8")
+            jobs.append({"html": str(html_path), "png": str(temp_dir_path / f"arte_{index}.png")})
+        manifest_path = temp_dir_path / "manifest.json"
+        result_path = temp_dir_path / "resultado.json"
+        manifest_path.write_text(json.dumps({"scale": scale, "jobs": jobs}), encoding="utf-8")
 
-        cmd = [
-            sys.executable,
-            str(worker_path),
-            str(html_path),
-            str(png_path),
-            str(scale),
-            str(browser_path) if browser_path else "",
-        ]
         result = subprocess.run(
-            cmd,
+            [sys.executable, str(worker_path), str(manifest_path), str(result_path), str(browser_path or "")],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=180,
+            timeout=180 + 120 * len(htmls),
         )
-
         if result.returncode != 0:
             stderr = (result.stderr or "").strip()
             stdout = (result.stdout or "").strip()
-            details = stderr or stdout or f"Processo terminou com código {result.returncode}."
-            raise RuntimeError(details)
+            raise RuntimeError(stderr or stdout or f"Processo terminou com código {result.returncode}.")
+        if not result_path.exists():
+            raise RuntimeError("O subprocesso terminou sem gerar os arquivos PNG.")
 
-        if not png_path.exists():
-            raise RuntimeError("O subprocesso terminou sem gerar o arquivo PNG.")
+        infos = json.loads(result_path.read_text(encoding="utf-8"))
+        return [
+            PngExport(
+                png=Path(job["png"]).read_bytes(),
+                scale=info["scale"],
+                requested_scale=info["requested_scale"],
+                width=info["width"],
+                height=info["height"],
+                broken_images=info["broken_images"],
+            )
+            for job, info in zip(jobs, infos)
+        ]
 
-        return png_path.read_bytes()
+
+def export_html_to_png_bytes(html: str, scale: float = 3) -> bytes:
+    return export_htmls_to_png([html], scale)[0].png
 
 
 def combine_pngs_to_pdf_bytes(png_images: list[bytes]) -> bytes:

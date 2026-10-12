@@ -4,3 +4,4 @@ openpyxl
 requests
 playwright
 cryptography
+pillow

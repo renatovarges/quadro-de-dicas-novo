@@ -1,0 +1,187 @@
+{
+ "ATHLETICO-PR": {
+  "DIOGO RIQUELME RIVAS DO NASCIMENTO": "assets/players/athletico_pr/130906_riquelme.jpg",
+  "DUDU": "assets/players/athletico_pr/125746_dudu.jpg",
+  "EDUARDO KOGITZKI ANASTACIO": "assets/players/athletico_pr/125746_dudu.jpg",
+  "KERWIN ANDRÉS CALDERÓN VARGAS": "assets/players/athletico_pr/127871_vargas.jpg",
+  "RIQUELME": "assets/players/athletico_pr/130906_riquelme.jpg",
+  "VARGAS": "assets/players/athletico_pr/127871_vargas.jpg"
+ },
+ "ATLETICO-MG": {
+  "CASTAÑO": "assets/players/atletico_mg/124961_castano.jpg",
+  "CAUÃ CAMPOS SOARES": "assets/players/atletico_mg/147089_caua_soares.jpg",
+  "CAUÃ SOARES": "assets/players/atletico_mg/147089_caua_soares.jpg",
+  "GABRIEL DELFIM": "assets/players/atletico_mg/115674_gabriel_delfim.jpg",
+  "GABRIEL DELFIM FERREIRA": "assets/players/atletico_mg/115674_gabriel_delfim.jpg",
+  "KEVIN DUVÁN CASTAÑO GIL": "assets/players/atletico_mg/124961_castano.jpg",
+  "LEONARDO CAMPOS DUARTE DA SILVA": "assets/players/atletico_mg/94214_leo_duarte.jpg",
+  "LÉO DUARTE": "assets/players/atletico_mg/94214_leo_duarte.jpg",
+  "THIAGO BORBAS": "assets/players/atletico_mg/117314_thiago_borbas.jpg",
+  "THIAGO NICOLÁS BORBAS SILVA": "assets/players/atletico_mg/117314_thiago_borbas.jpg"
+ },
+ "BAHIA": {
+  "ALEJO VÉLIZ": "assets/players/bahia/114208_alejo_veliz.jpg",
+  "DAVID MARTINS": "assets/players/bahia/140726_david_martins.jpg",
+  "DAVID MARTINS ALMEIDA DE LIRA": "assets/players/bahia/140726_david_martins.jpg",
+  "MARCO MORENO": "assets/players/bahia/120681_marco_moreno.jpg",
+  "MARCO MORENO OJEDA": "assets/players/bahia/120681_marco_moreno.jpg",
+  "MARCOS VICTOR": "assets/players/bahia/115537_marcos_victor.jpg",
+  "MARCOS VICTOR FERREIRA DA SILVA": "assets/players/bahia/115537_marcos_victor.jpg"
+ },
+ "BOTAFOGO": {
+  "ADENOR LEONARDO BACHI": "assets/players/botafogo/tecnico_tite.jpg",
+  "ARTHUR CHAVES": "assets/players/botafogo/111412_arthur_chaves.jpg",
+  "ARTHUR LARGURA CHAVES": "assets/players/botafogo/111412_arthur_chaves.jpg",
+  "CLARENCE CLYDE SEEDORF": "assets/players/corinthians/tecnico_clarence_seedorf.jpg",
+  "CLARENCE SEEDORF": "assets/players/corinthians/tecnico_clarence_seedorf.jpg",
+  "GABRIEL BATISTA": "assets/players/botafogo/98333_gabriel_batista.jpg",
+  "GABRIEL BATISTA DE SOUZA": "assets/players/botafogo/98333_gabriel_batista.jpg",
+  "HAKIM ZIYECH": "assets/players/botafogo/99520_ziyech.jpg",
+  "HUGUINHO": "assets/players/botafogo/141400_huguinho.jpg",
+  "JHOAN HERNÁNDEZ": "assets/players/botafogo/131964_jhoan_hernandez.jpg",
+  "JHOAN HERNÁNDEZ MEJÍA": "assets/players/botafogo/131964_jhoan_hernandez.jpg",
+  "LUCAS GABRIEL NUNES MONZÓN LEMOS": "assets/players/botafogo/124483_lucas_monzon.jpg",
+  "LUCAS MONZÓN": "assets/players/botafogo/124483_lucas_monzon.jpg",
+  "RODRIGO BELLÃO": "assets/players/botafogo/tecnico_rodrigo_bellao.jpg",
+  "SEEDORF": "assets/players/corinthians/tecnico_clarence_seedorf.jpg",
+  "TITE": "assets/players/botafogo/tecnico_tite.jpg",
+  "VICTOR HUGO CUSTÓDIO DE MELO MOURA": "assets/players/botafogo/141400_huguinho.jpg",
+  "ZIYECH": "assets/players/botafogo/99520_ziyech.jpg"
+ },
+ "CHAPECOENSE": {
+  "BRUNO NUNES DE BARROS": "assets/players/chapecoense/93637_bruno_tubarao.jpg",
+  "BRUNO TUBARÃO": "assets/players/chapecoense/93637_bruno_tubarao.jpg",
+  "KEVIN FEDERIK RAMÍREZ DUTRA": "assets/players/chapecoense/94034_kevin_ramirez.jpg",
+  "KEVIN RAMÍREZ": "assets/players/chapecoense/94034_kevin_ramirez.jpg",
+  "RAFAEL DOS SANTOS LACERDA": "assets/players/chapecoense/tecnico_rafael_lacerda.jpg",
+  "RAFAEL LACERDA": "assets/players/chapecoense/tecnico_rafael_lacerda.jpg",
+  "VINÍCIUS BALIEIRO": "assets/players/chapecoense/110605_vinicius_balieiro.jpg",
+  "VINÍCIUS BALIEIRO LOURENÇO DE CARVALHO": "assets/players/chapecoense/110605_vinicius_balieiro.jpg",
+  "YAGO FELIPE": "assets/players/chapecoense/87747_yago_felipe.jpg",
+  "YAGO FELIPE DA COSTA ROCHA": "assets/players/chapecoense/87747_yago_felipe.jpg"
+ },
+ "CORINTHIANS": {
+  "CLARENCE CLYDE SEEDORF": "assets/players/corinthians/tecnico_clarence_seedorf.jpg",
+  "CLARENCE SEEDORF": "assets/players/corinthians/tecnico_clarence_seedorf.jpg",
+  "FERNANDO DINIZ": "assets/players/corinthians/tecnico_fernando_diniz.jpg",
+  "KAUÊ": "assets/players/corinthians/121823_kaue.jpg",
+  "KAUÊ VINICIUS DE SOUZA CAMARGO": "assets/players/corinthians/121823_kaue.jpg",
+  "KAYKE": "assets/players/corinthians/121824_kayke.jpg",
+  "KAYKE FERRARI GUIMARÃES": "assets/players/corinthians/121824_kayke.jpg",
+  "SEEDORF": "assets/players/corinthians/tecnico_clarence_seedorf.jpg"
+ },
+ "CORITIBA": {
+  "BUSTOS": "assets/players/coritiba/96678_bustos.jpg",
+  "FABRICIO TOMÁS BUSTOS SEIN": "assets/players/coritiba/96678_bustos.jpg",
+  "RENATO MARQUES": "assets/players/coritiba/117403_renato_marques.jpg",
+  "RENATO MARQUES DE OLIVEIRA JÚNIOR": "assets/players/coritiba/117403_renato_marques.jpg"
+ },
+ "CRUZEIRO": {
+  "ARTUR JORGE": "assets/players/cruzeiro/tecnico_artur_jorge.jpg",
+  "ARTUR JORGE TORRES GOMES ARAÚJO AMORIM": "assets/players/cruzeiro/tecnico_artur_jorge.jpg",
+  "FELIPE DE MORAIS BARBOSA PENNA DOS SANTOS": "assets/players/cruzeiro/151292_felipe_morais.jpg",
+  "FELIPE MORAIS": "assets/players/cruzeiro/151292_felipe_morais.jpg",
+  "GABRIEL HERNÁN ROJAS": "assets/players/cruzeiro/97101_gabriel_rojas.jpg",
+  "GABRIEL ROJAS": "assets/players/cruzeiro/97101_gabriel_rojas.jpg",
+  "JOSÉ LUCAS GOMES DA SILVA": "assets/players/cruzeiro/141160_ze_lucas.jpg",
+  "OTÁVIO": "assets/players/cruzeiro/117404_otavio.jpg",
+  "OTÁVIO ELEODORO REZENDE COSTA": "assets/players/cruzeiro/117404_otavio.jpg",
+  "RHUAN GABRIEL": "assets/players/cruzeiro/146991_rhuan_gabriel.jpg",
+  "RHUAN GABRIEL RODRIGUES DE SOUZA SILVA": "assets/players/cruzeiro/146991_rhuan_gabriel.jpg",
+  "WESLEY": "assets/players/cruzeiro/117909_wesley.jpg",
+  "WESLEY GASSOVA RIBEIRO TEIXEIRA": "assets/players/cruzeiro/117909_wesley.jpg",
+  "ZÉ LUCAS": "assets/players/cruzeiro/141160_ze_lucas.jpg"
+ },
+ "FLUMINENSE": {
+  "MARCO AURÉLIO DE OLIVEIRA BREVES": "assets/players/fluminense/tecnico_marcao.jpg",
+  "MARCÃO": "assets/players/fluminense/tecnico_marcao.jpg"
+ },
+ "GREMIO": {
+  "BERNARDO SCHONS ZORTEA": "assets/players/gremio/142260_bernardo_zortea.jpg",
+  "BERNARDO ZORTEA": "assets/players/gremio/142260_bernardo_zortea.jpg",
+  "DANILO BARBOSA": "assets/players/gremio/86777_danilo_barbosa.jpg",
+  "DANILO BARBOSA DA SILVA": "assets/players/gremio/86777_danilo_barbosa.jpg",
+  "DIEGO CAITO": "assets/players/gremio/122670_diego_caito.jpg",
+  "DIEGO CAITO BARCELLOS OLIVEIRA DOS SANTOS": "assets/players/gremio/122670_diego_caito.jpg",
+  "FILIP KROVINOVIĆ": "assets/players/gremio/100596_krovinovic.jpg",
+  "KROVINOVIC": "assets/players/gremio/100596_krovinovic.jpg",
+  "PEDRO GABRIEL": "assets/players/gremio/141594_pedro_gabriel.jpg",
+  "PEDRO GABRIEL CRISOSTOMO PINHEIRO": "assets/players/gremio/141594_pedro_gabriel.jpg",
+  "RENATO GAÚCHO": "assets/players/gremio/tecnico_renato_gaucho.jpg",
+  "RENATO PORTALUPPI": "assets/players/gremio/tecnico_renato_gaucho.jpg"
+ },
+ "INTERNACIONAL": {
+  "ALLEX": "assets/players/internacional/124270_allex.jpg",
+  "ALLEX RODRIGUES PEREIRA DA SILVA": "assets/players/internacional/124270_allex.jpg",
+  "EDUARDO AUGUSTO BAPTISTA MIGUEL": "assets/players/internacional/tecnico_eduardo_baptista.jpg",
+  "EDUARDO BAPTISTA": "assets/players/internacional/tecnico_eduardo_baptista.jpg"
+ },
+ "MIRASSOL": {
+  "GUSTAVO HENRIC DA SILVA": "assets/players/mirassol/97450_gustavo_mosquito.jpg",
+  "GUSTAVO MOSQUITO": "assets/players/mirassol/97450_gustavo_mosquito.jpg"
+ },
+ "PALMEIRAS": {
+  "ALEXANDER BARBOZA": "assets/players/palmeiras/99274_alexander_barboza.jpg",
+  "ALEXANDER NAHUEL BARBOZA ULLÚA": "assets/players/palmeiras/99274_alexander_barboza.jpg",
+  "LARSON": "assets/players/palmeiras/136156_larson.jpg",
+  "LARSON TORNA FERREIRA DOS SANTOS": "assets/players/palmeiras/136156_larson.jpg",
+  "LUIS FELIPE PACHECO DA COSTA": "assets/players/palmeiras/146623_luis_pacheco.jpg",
+  "LUIS PACHECO": "assets/players/palmeiras/146623_luis_pacheco.jpg"
+ },
+ "RED BULL BRAGANTINO": {
+  "DAVI GOMES": "assets/players/red_bull_bragantino/140906_davi_gomes.jpg",
+  "DAVI GOMES DE ALVARENGA": "assets/players/red_bull_bragantino/140906_davi_gomes.jpg",
+  "WALLACE YAN": "assets/players/red_bull_bragantino/122573_wallace_yan.jpg",
+  "WALLACE YAN DE SOUZA BARRETO": "assets/players/red_bull_bragantino/122573_wallace_yan.jpg"
+ },
+ "REMO": {
+  "JOSÉ IVALDO ALMEIDA SILVA": "assets/players/remo/91866_ze_ivaldo.jpg",
+  "THIAGO CARPINI": "assets/players/remo/tecnico_thiago_carpini.jpg",
+  "THIAGO CARPINI BARBOSA": "assets/players/remo/tecnico_thiago_carpini.jpg",
+  "ZÉ IVALDO": "assets/players/remo/91866_ze_ivaldo.jpg"
+ },
+ "SANTOS": {
+  "ALEXI STIVAL": "assets/players/santos/tecnico_cuca.jpg",
+  "CHRISTIAN GABRIEL OLIVA GIMÉNEZ": "assets/players/santos/101807_oliva.jpg",
+  "CUCA": "assets/players/santos/tecnico_cuca.jpg",
+  "EVERTON": "assets/players/santos/86757_everton.jpg",
+  "EVERTON SOUSA SOARES": "assets/players/santos/86757_everton.jpg",
+  "LUCAS VERÍSSIMO": "assets/players/santos/93368_lucas_verissimo.jpg",
+  "LUCAS VERÍSSIMO DA SILVA": "assets/players/santos/93368_lucas_verissimo.jpg",
+  "OLIVA": "assets/players/santos/101807_oliva.jpg",
+  "RODINEI": "assets/players/santos/73992_rodinei.jpg",
+  "RODINEI MARCELO DE ALMEIDA": "assets/players/santos/73992_rodinei.jpg"
+ },
+ "SAO PAULO": {
+  "DJHORDNEY": "assets/players/sao_paulo/148215_djhordney.jpg",
+  "DJHORDNEY FERREIRA": "assets/players/sao_paulo/148215_djhordney.jpg",
+  "DORIVAL JÚNIOR": "assets/players/sao_paulo/tecnico_dorival_junior.jpg",
+  "DORIVAL SILVESTRE JÚNIOR": "assets/players/sao_paulo/tecnico_dorival_junior.jpg",
+  "GUSTAVO DOMINGOS SANTANA": "assets/players/sao_paulo/141382_gustavo_santana.jpg",
+  "GUSTAVO SANTANA": "assets/players/sao_paulo/141382_gustavo_santana.jpg",
+  "IAGO": "assets/players/sao_paulo/97868_iago.jpg",
+  "IAGO AMARAL BORDUCHI": "assets/players/sao_paulo/97868_iago.jpg",
+  "LUCCA": "assets/players/sao_paulo/141609_lucca.jpg",
+  "LUCCA MARQUES ALENCAR": "assets/players/sao_paulo/141609_lucca.jpg",
+  "NEWTON": "assets/players/sao_paulo/104693_newton.jpg",
+  "NEWTON ARAÚJO DA COSTA JÚNIOR": "assets/players/sao_paulo/104693_newton.jpg",
+  "PERIVAN DOS SANTOS": "assets/players/sao_paulo/148717_tete.jpg",
+  "TETÊ": "assets/players/sao_paulo/148717_tete.jpg"
+ },
+ "VASCO": {
+  "ALAN HERNÁN LESCANO": "assets/players/vasco/124552_lescano.jpg",
+  "AVELLAR": "assets/players/vasco/141405_avellar.jpg",
+  "COLIDIO": "assets/players/vasco/114323_colidio.jpg",
+  "FACUNDO COLIDIO": "assets/players/vasco/114323_colidio.jpg",
+  "LESCANO": "assets/players/vasco/124552_lescano.jpg",
+  "PEDRO EMANUEL": "assets/players/vasco/tecnico_pedro_emanuel.jpg",
+  "PEDRO EMANUEL DOS SANTOS MARTINS SILVA": "assets/players/vasco/tecnico_pedro_emanuel.jpg",
+  "RIQUELME AVELLAR DA SILVA FORTES": "assets/players/vasco/141405_avellar.jpg"
+ },
+ "VITORIA": {
+  "DIEGO TARZIA": "assets/players/vitoria/143153_tarzia.jpg",
+  "LUCAS RODRIGUES DA SILVA": "assets/players/vitoria/97911_lucas_silva.jpg",
+  "LUCAS SILVA": "assets/players/vitoria/97911_lucas_silva.jpg",
+  "TARZIA": "assets/players/vitoria/143153_tarzia.jpg"
+ }
+}
