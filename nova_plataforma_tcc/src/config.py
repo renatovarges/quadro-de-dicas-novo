@@ -1,4 +1,7 @@
+import re
 from pathlib import Path
+
+from .brand import BRAND
 
 
 ROOT_PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -7,10 +10,20 @@ TEAMS_DIR = ASSETS_DIR / "teams"
 LOGOS_DIR = ASSETS_DIR / "logos"
 FONTS_DIR = ASSETS_DIR / "fonts"
 
-DEFAULT_EXCEL_FILE = ROOT_PROJECT_DIR / "Scouts Pós R11 2026.xlsx"
+def _latest_scouts_file() -> Path:
+    """Usa sempre a planilha 'Scouts Pós R<n> 2026.xlsx' mais recente da pasta do projeto."""
+    candidates = []
+    for file in ROOT_PROJECT_DIR.glob("Scouts*R*.xlsx"):
+        match = re.search(r"R(\d+)", file.stem)
+        if match:
+            candidates.append((int(match.group(1)), file))
+    return max(candidates)[1] if candidates else ROOT_PROJECT_DIR / "Scouts Pós R29 2026.xlsx"
+
+
+DEFAULT_EXCEL_FILE = _latest_scouts_file()
 BACKGROUND_FILE = LOGOS_DIR / "background.png"
-MAIN_LOGO_FILE = LOGOS_DIR / "logo_tcc.png"
-MAIN_LOGO_WHITE_FILE = LOGOS_DIR / "logo_tcc_branco.png"
+MAIN_LOGO_FILE = LOGOS_DIR / BRAND.logo_file
+MAIN_LOGO_WHITE_FILE = LOGOS_DIR / BRAND.logo_white_file
 PLAYER_PHOTOS_DIR = ASSETS_DIR / "players"
 PHOTO_OVERRIDES_FILE = ASSETS_DIR / "photo_overrides.json"
 # Contas de hospedagem que deixaram de existir (Cloudinary respondeu "cloud_name ddrygy9bm is disabled").
