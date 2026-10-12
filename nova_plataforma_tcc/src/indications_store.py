@@ -139,7 +139,7 @@ def archive_most_escalated(remote_config: dict | None = None) -> int | None:
     Devolve a rodada guardada ou None (mercado aberto, já guardado, ou página indisponível).
     """
     from .feedback import fetch_market_status
-    from .most_escalated import fetch_most_escalated, save_repo_archive  # noqa: F401
+    from .most_escalated import fetch_captains, fetch_most_escalated
 
     market = fetch_market_status()
     if market.get("status_mercado") != 2:  # 2 = fechado
@@ -150,5 +150,7 @@ def archive_most_escalated(remote_config: dict | None = None) -> int | None:
     payload = fetch_most_escalated()
     if len(payload["players"]) < 12:
         return None  # página incompleta: não guarda dado ruim
+    close_timestamp = (market.get("fechamento") or {}).get("timestamp")
+    payload["captain_data"] = fetch_captains(close_timestamp)  # None se a fonte de terceiros estiver fora do ar
     save_most_escalated(round_number, payload, remote_config)
     return round_number

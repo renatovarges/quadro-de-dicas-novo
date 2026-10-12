@@ -25,6 +25,11 @@ POSITION_BY_CODE = {"gol": "Goleiros", "lat": "Laterais", "zag": "Zagueiros", "m
 STARTERS = {"Goleiros": 1, "Laterais": 2, "Zagueiros": 2, "Meias": 3, "Atacantes": 3, "Técnicos": 1}
 REPO_ARCHIVE_DIR = ROOT_PROJECT_DIR / "data" / "mais_escalados"
 
+# Capitães e top 20 geral: foto tirada de tempos em tempos pela outra plataforma do Renato (dado de terceiros,
+# Cartomante FC). O Gato Mestre não publica capitão.
+H2H_URL = "https://dashboard.h2hscout.com/api/provaveis-escalados"
+CAPTAIN_MAX_MINUTES_BEFORE_CLOSE = 90   # além disso o capitão é marcado como estimado
+
 
 def _pick(pattern: str, text: str) -> str | None:
     match = re.search(pattern, text)
@@ -80,6 +85,35 @@ def fetch_most_escalated(timeout: int = 30) -> dict:
     return {"source": GATO_URL, "captured_at": now_iso(), "players": players}
 
 
+def fetch_captains(close_timestamp: int | None = None, timeout: int = 30) -> dict | None:
+    """Top 5 capitães e top 20 geral (fonte de terceiros), com a idade da foto em relação ao fechamento do mercado."""
+    try:
+        response = requests.get(H2H_URL, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    def clean(item: dict) -> dict:
+        return {"rank": item.get("rank"), "athlete_id": item.get("atletaId"), "name": item.get("nome"),
+                "club": item.get("clube"), "position": item.get("pos"), "count": item.get("contagem")}
+
+    result = {
+        "source": "Cartomante FC (terceiro) via dashboard.h2hscout.com",
+        "generated_at": data.get("geradoEm"),
+        "age_hours_when_captured": data.get("idadeHoras"),
+        "captains": [clean(c) for c in data.get("capitaes", [])],
+        "top20": [clean(c) for c in data.get("escalados", [])],
+        "minutes_before_close": None,
+    }
+    if close_timestamp and data.get("geradoEm"):
+        from datetime import datetime
+
+        generated = datetime.fromisoformat(data["geradoEm"].replace("Z", "+00:00")).timestamp()
+        result["minutes_before_close"] = round((close_timestamp - generated) / 60, 1)
+    return result
+
+
 def starters(payload: dict) -> list[dict]:
     """Os 12 titulares do time dos mais escalados (1-2-2-3-3 + técnico), na ordem das posições."""
     picked: list[dict] = []
@@ -107,8 +141,26 @@ def build_team(payload: dict, results: dict) -> dict:
                 "points": result["points"] if played else 0.0,
             }
         )
-    total = round(sum(p["points"] for p in team), 2)
-    return {"players": team, "total": total, "captured_at": payload.get("captured_at")}
+    captain_id, bonus, note = None, 0.0, ""
+    captains = (payload.get("captain_data") or {}).get("captains") or []
+    in_team = {p["athlete_id"]: p for p in team if p["position"] != "Técnicos"}
+    for candidate in sorted(captains, key=lambda c: c.get("rank") or 99):
+        if candidate.get("athlete_id") in in_team:
+            captain_id = candidate["athlete_id"]
+            bonus = round(0.5 * in_team[captain_id]["points"], 2)
+            minutes = (payload.get("captain_data") or {}).get("minutes_before_close")
+            if minutes is not None and minutes > CAPTAIN_MAX_MINUTES_BEFORE_CLOSE:
+                note = f"capitão estimado: dado de terceiros colhido {minutes / 60:.0f} h antes do fechamento"
+            break
+    total = round(sum(p["points"] for p in team) + bonus, 2)
+    return {
+        "players": team,
+        "total": total,
+        "captain_id": captain_id,
+        "captain_bonus": bonus,
+        "captain_note": note,
+        "captured_at": payload.get("captured_at"),
+    }
 
 
 # ---- arquivo de segurança dentro do repositório (não depende do Supabase) ---------------------

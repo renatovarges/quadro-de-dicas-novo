@@ -163,5 +163,215 @@
    "team": "ATHLETICO-PR"
   }
  ],
- "round": 30
+ "round": 30,
+ "captain_data": {
+  "source": "Cartomante FC (terceiro) via dashboard.h2hscout.com",
+  "generated_at": "2026-10-10T20:53:15.045Z",
+  "age_hours_when_captured": 49.1,
+  "captains": [
+   {
+    "rank": 1,
+    "athlete_id": 143193,
+    "name": "Viveros",
+    "club": "CAP",
+    "position": "ATA",
+    "count": 250011
+   },
+   {
+    "rank": 2,
+    "athlete_id": 94583,
+    "name": "Pedro",
+    "club": "FLA",
+    "position": "ATA",
+    "count": 76527
+   },
+   {
+    "rank": 3,
+    "athlete_id": 116706,
+    "name": "Andrés Gómez",
+    "club": "VAS",
+    "position": "ATA",
+    "count": 67026
+   },
+   {
+    "rank": 4,
+    "athlete_id": 113103,
+    "name": "Flaco López",
+    "club": "PAL",
+    "position": "ATA",
+    "count": 57661
+   },
+   {
+    "rank": 5,
+    "athlete_id": 114323,
+    "name": "Colidio",
+    "club": "VAS",
+    "position": "ATA",
+    "count": 34359
+   }
+  ],
+  "top20": [
+   {
+    "rank": 1,
+    "athlete_id": 143193,
+    "name": "Viveros",
+    "club": "CAP",
+    "position": "ATA",
+    "count": 437038
+   },
+   {
+    "rank": 2,
+    "athlete_id": 124552,
+    "name": "Lescano",
+    "club": "VAS",
+    "position": "MEI",
+    "count": 370976
+   },
+   {
+    "rank": 3,
+    "athlete_id": 107093,
+    "name": "Luciano Juba",
+    "club": "BAH",
+    "position": "LAT",
+    "count": 350562
+   },
+   {
+    "rank": 4,
+    "athlete_id": 99815,
+    "name": "Arias",
+    "club": "PAL",
+    "position": "MEI",
+    "count": 307626
+   },
+   {
+    "rank": 5,
+    "athlete_id": 128177,
+    "name": "Pedro Emanuel",
+    "club": "VAS",
+    "position": "TEC",
+    "count": 271671
+   },
+   {
+    "rank": 6,
+    "athlete_id": 96610,
+    "name": "Matheus Pereira",
+    "club": "CRU",
+    "position": "MEI",
+    "count": 268065
+   },
+   {
+    "rank": 7,
+    "athlete_id": 116706,
+    "name": "Andrés Gómez",
+    "club": "VAS",
+    "position": "ATA",
+    "count": 257731
+   },
+   {
+    "rank": 8,
+    "athlete_id": 71684,
+    "name": "Gustavo Gómez",
+    "club": "PAL",
+    "position": "ZAG",
+    "count": 244984
+   },
+   {
+    "rank": 9,
+    "athlete_id": 113103,
+    "name": "Flaco López",
+    "club": "PAL",
+    "position": "ATA",
+    "count": 227253
+   },
+   {
+    "rank": 10,
+    "athlete_id": 94583,
+    "name": "Pedro",
+    "club": "FLA",
+    "position": "ATA",
+    "count": 199363
+   },
+   {
+    "rank": 11,
+    "athlete_id": 98873,
+    "name": "Samuel Lino",
+    "club": "FLA",
+    "position": "ATA",
+    "count": 167621
+   },
+   {
+    "rank": 12,
+    "athlete_id": 105436,
+    "name": "Carrascal",
+    "club": "FLA",
+    "position": "MEI",
+    "count": 167249
+   },
+   {
+    "rank": 13,
+    "athlete_id": 116065,
+    "name": "Cuiabano",
+    "club": "VAS",
+    "position": "LAT",
+    "count": 154378
+   },
+   {
+    "rank": 14,
+    "athlete_id": 118655,
+    "name": "Saldivia",
+    "club": "VAS",
+    "position": "ZAG",
+    "count": 143468
+   },
+   {
+    "rank": 15,
+    "athlete_id": 114802,
+    "name": "Vitor Roque",
+    "club": "PAL",
+    "position": "ATA",
+    "count": 137619
+   },
+   {
+    "rank": 16,
+    "athlete_id": 94930,
+    "name": "Lucas Paquetá",
+    "club": "FLA",
+    "position": "MEI",
+    "count": 133577
+   },
+   {
+    "rank": 17,
+    "athlete_id": 87008,
+    "name": "Léo Jardim",
+    "club": "VAS",
+    "position": "GOL",
+    "count": 113495
+   },
+   {
+    "rank": 18,
+    "athlete_id": 98517,
+    "name": "Jean Lucas",
+    "club": "BAH",
+    "position": "MEI",
+    "count": 108736
+   },
+   {
+    "rank": 19,
+    "athlete_id": 83528,
+    "name": "Léo Pereira",
+    "club": "FLA",
+    "position": "ZAG",
+    "count": 102826
+   },
+   {
+    "rank": 20,
+    "athlete_id": 130843,
+    "name": "Arthur Dias",
+    "club": "CAP",
+    "position": "ZAG",
+    "count": 100012
+   }
+  ],
+  "minutes_before_close": 5.7
+ }
 }

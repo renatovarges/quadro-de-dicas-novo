@@ -236,13 +236,24 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     )
     mine_bonus = f' <small>(inclui {fmt(mine["captain_bonus"])} do capitão)</small>' if mine.get("captain_bonus") else ""
 
+    captain_source_note = ""
+    if escalated and escalated.get("captain_id") is not None:
+        captain_source_note = (
+            "<span>Capitão dos mais escalados: fonte de terceiros (Cartomante FC)"
+            + (f" - {escalated['captain_note']}" if escalated.get("captain_note") else "")
+            + "</span>"
+        )
     if escalated:
         escalated_ids = {p["athlete_id"] for p in escalated["players"]}
+        if escalated.get("captain_id") is not None:
+            escalated_cap_text = f'(inclui {fmt(escalated["captain_bonus"])} do capitão)'
+        else:
+            escalated_cap_text = "(sem capitão)"
         teams_html = f"""<div class="teams">
         <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
           {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção")}</div>
-        <div class="team-box"><div class="team-head"><h2>Mais escalados</h2><div class="tot">{fmt(escalated["total"])} pts <small>(sem capitão)</small></div></div>
-          {_pitch(escalated, resolver, None, my_ids, "indicado", show_count=True)}</div>
+        <div class="team-box"><div class="team-head"><h2>Mais escalados</h2><div class="tot">{fmt(escalated["total"])} pts <small>{escalated_cap_text}</small></div></div>
+          {_pitch(escalated, resolver, escalated.get("captain_id"), my_ids, "indicado", show_count=True)}</div>
       </div>
       <div class="team-box" style="margin-top:22px"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
         {_strip(cartola, resolver, my_ids, "indicado")}</div>"""
@@ -262,7 +273,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
       {teams_html}
       <div class="forms"><h3>Outras formações</h3>{"".join(chips)}<span style="font-weight:700">{forms_note}</span></div>
       <footer class="legend"><span><i style="background:#ffc61e"></i>Indicado que entrou na seleção do Cartola</span>
-        <span><i style="background:#38c172"></i>Capitão (pontuação x1,5)</span><span><i style="background:#e0a100"></i>Mitou: mais de 10 pts</span></footer>
+        <span><i style="background:#38c172"></i>Capitão (pontuação x1,5)</span><span><i style="background:#e0a100"></i>Mitou: mais de 10 pts</span>{captain_source_note}</footer>
     </div></body></html>"""
 
 
