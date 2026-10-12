@@ -108,6 +108,8 @@ def build_preview_html(
     cards: list[dict],
     include_client_export: bool = False,
     show_phrase: bool = True,
+    page: int = 1,
+    pages: int = 1,
 ) -> str:
     if BRAND.card_layout == "guardiola":
         from .render_guardiola import build_preview_html as build_guardiola_html
@@ -126,7 +128,8 @@ def build_preview_html(
     subtitle_scope = "POR MANDO" if filter_mode == "POR_MANDO" else "NO GERAL"
     subtitle = f"{subtitle_prefix} {window_n} JOGOS {subtitle_scope} - RODADA {target_round}"
     cards_html = "".join(render_card(card) for card in cards) if cards else '<div class="empty-state">Nenhum jogador selecionado.</div>'
-    title_class = "hero-title compact" if len(f"INDICAÇÕES - {position_key.upper()}") > 22 else "hero-title"
+    page_suffix = f" ({page}/{pages})" if pages > 1 else ""
+    title_class = "hero-title compact" if len(f"INDICAÇÕES - {position_key.upper()}{page_suffix}") > 22 else "hero-title"
 
     controls_html = (
         '<div id="controls"><select id="scale"><option value="3">3x</option><option value="4">4x</option><option value="5" selected>5x</option><option value="6">6x</option></select><button onclick="downloadPNG()">Baixar PNG HQ</button></div>'
@@ -282,7 +285,7 @@ def build_preview_html(
     <body>
         {controls_html}
         <div class="report" id="capture">
-            <header class="hero"><img class="hero-logo" src="data:image/png;base64,{logo_b64}" alt="TCC"><div class="hero-copy"><div class="{title_class}">INDICAÇÕES - {position_key.upper()}</div><div class="hero-subtitle">{subtitle}</div></div></header>
+            <header class="hero"><img class="hero-logo" src="data:image/png;base64,{logo_b64}" alt="TCC"><div class="hero-copy"><div class="{title_class}">INDICAÇÕES - {position_key.upper()}{page_suffix}</div><div class="hero-subtitle">{subtitle}</div></div></header>
             <main class="cards">{cards_html}</main>
             <footer class="legend">
                 <div class="legend-item"><span class="legend-dot star">★</span><span>Unanimidade</span></div>

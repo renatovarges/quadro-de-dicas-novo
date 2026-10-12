@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
-from src.indications_store import archive_latest_round
+from src.indications_store import archive_latest_round, archive_most_escalated
 from src.auth_store import load_globo_auth, save_globo_auth, save_mpv_cache
 from src.data_sources import (
     build_mpv_cache_payload,
@@ -86,6 +86,11 @@ def main() -> int:
         print(f"Pontuacao da rodada {archived} arquivada." if archived else "Nenhuma rodada nova para arquivar.")
     except Exception as exc:  # o arquivamento nao pode derrubar a atualizacao do MPV
         print(f"Aviso: nao consegui arquivar a pontuacao da rodada: {exc}")
+    try:
+        captured = archive_most_escalated(remote_config)
+        print(f"Mais escalados da rodada {captured} guardados." if captured else "Mais escalados: nada novo.")
+    except Exception as exc:
+        print(f"Aviso: nao consegui guardar os mais escalados: {exc}")
     return 0
 
 

@@ -129,6 +129,18 @@ SUMMARY_CSS = """
     .pl .tag { position: absolute; top: -8px; right: 20px; background: #ffc61e; color: #241108; font-size: 12px; font-weight: 900; padding: 2px 7px; border-radius: 8px; z-index: 2; text-transform: uppercase; }
     .pl.hit .photo { border-color: #ffc61e; box-shadow: 0 0 0 4px rgba(255,198,30,.55); }
     .pl .pos { font-size: 12px; font-weight: 700; opacity: .85; text-transform: uppercase; }
+    .esc { margin-top: 3px; font-size: 13px; font-weight: 700; opacity: .95; }
+    .strip { min-height: 0 !important; flex-direction: row !important; justify-content: space-evenly; align-items: flex-end; padding: 12px 8px 12px; gap: 6px; }
+    .strip .sgroup { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .strip .slabel { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #fff; opacity: .85; }
+    .strip .srow { display: flex; gap: 2px; }
+    .strip .pl { width: 132px; }
+    .strip .pl .photo { width: 78px; height: 78px; }
+    .strip .pl .ph-wrap { width: 86px; }
+    .strip .pl .badge { width: 28px; height: 28px; }
+    .strip .pl .nm { max-width: 124px; font-size: 14px; }
+    .strip .pl .pts { font-size: 21px; min-width: 62px; }
+    .strip .pl .tag { right: 6px; font-size: 11px; }
     .forms { margin-top: 16px; background: __CARD__; color: #fff; border: 3px solid #f5f5f0; border-radius: 16px; padding: 12px 18px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
     .forms h3 { margin: 0; font-size: 22px; font-weight: 900; text-transform: uppercase; }
     .fchip { background: rgba(255,255,255,.14); border-radius: 10px; padding: 6px 12px; font-size: 20px; font-weight: 800; }
@@ -137,7 +149,7 @@ SUMMARY_CSS = """
 """
 
 
-def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highlight_tag: str = "") -> str:
+def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highlight_tag: str = "", extra: str = "") -> str:
     points = player["points"]
     pts_class = "mitou" if points > 10 else ("neg" if points < 0 else "")
     hit = "hit" if highlight_tag else ""
@@ -147,11 +159,13 @@ def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highli
         f'<div class="pl {hit}">{cap}{tag}'
         f'<div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
         f'<div class="nm">{escape(abbreviate_player_name(player["name"], 14))}</div>'
-        f'<div class="pts {pts_class}">{fmt(points)}</div></div>'
+        f'<div class="pts {pts_class}">{fmt(points)}</div>'
+        + (f'<div class="esc">{extra}</div>' if extra else "")
+        + "</div>"
     )
 
 
-def _pitch(team: dict, resolver: PhotoResolver, captain_id=None, mark_ids: set | None = None, tag: str = "") -> str:
+def _pitch(team: dict, resolver: PhotoResolver, captain_id=None, mark_ids: set | None = None, tag: str = "", show_count: bool = False) -> str:
     by_pos = {key: [p for p in team["players"] if p["position"] == key] for key in POSITION_ORDER}
     lat, zag = by_pos["Laterais"], by_pos["Zagueiros"]
     if len(lat) == 2:
@@ -162,11 +176,28 @@ def _pitch(team: dict, resolver: PhotoResolver, captain_id=None, mark_ids: set |
     html = []
     for row in rows:
         cells = "".join(
-            _pitch_player(p, resolver, captain_id, tag if (mark_ids is not None and p["athlete_id"] in mark_ids) else "")
+            _pitch_player(
+                p, resolver, captain_id, tag if (mark_ids is not None and p["athlete_id"] in mark_ids) else "",
+                f'{p["count"]:,} escalações'.replace(",", ".") if show_count and p.get("count") else "",
+            )
             for p in row
         )
         html.append(f'<div class="line">{cells}</div>')
     return f'<div class="pitch">{"".join(html)}</div>'
+
+
+def _strip(team: dict, resolver: PhotoResolver, mark_ids: set, tag: str) -> str:
+    """Campinho deitado (faixa): goleiro à esquerda, ataque à direita, técnico no fim."""
+    groups = []
+    for position, label in (("Goleiros", "Goleiro"), ("Laterais", "Laterais"), ("Zagueiros", "Zagueiros"),
+                            ("Meias", "Meias"), ("Atacantes", "Atacantes"), ("Técnicos", "Técnico")):
+        players = [p for p in team["players"] if p["position"] == position]
+        if players:
+            cells = "".join(
+                _pitch_player(p, resolver, None, tag if p["athlete_id"] in mark_ids else "") for p in players
+            )
+            groups.append(f'<div class="sgroup"><div class="slabel">{label}</div><div class="srow">{cells}</div></div>')
+    return f'<div class="pitch strip">{"".join(groups)}</div>'
 
 
 def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
@@ -177,7 +208,8 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     if not mine:
         return '<html><body><div id="capture" style="padding:40px;font:24px sans-serif">Indicados insuficientes para montar a seleção.</div></body></html>'
 
-    all_players = mine["players"] + cartola["players"]
+    escalated = evaluation.get("most_escalated")
+    all_players = mine["players"] + cartola["players"] + (escalated["players"] if escalated else [])
     _collect_urls(all_players, resolver)
     my_ids = {p["athlete_id"] for p in evaluation["players"]}
     cartola_ids = {p["athlete_id"] for p in cartola["players"]}
@@ -204,17 +236,30 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     )
     mine_bonus = f' <small>(inclui {fmt(mine["captain_bonus"])} do capitão)</small>' if mine.get("captain_bonus") else ""
 
+    if escalated:
+        escalated_ids = {p["athlete_id"] for p in escalated["players"]}
+        teams_html = f"""<div class="teams">
+        <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
+          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção")}</div>
+        <div class="team-box"><div class="team-head"><h2>Mais escalados</h2><div class="tot">{fmt(escalated["total"])} pts <small>(sem capitão)</small></div></div>
+          {_pitch(escalated, resolver, None, my_ids, "indicado", show_count=True)}</div>
+      </div>
+      <div class="team-box" style="margin-top:22px"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
+        {_strip(cartola, resolver, my_ids, "indicado")}</div>"""
+    else:
+        teams_html = f"""<div class="teams">
+        <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
+          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção")}</div>
+        <div class="team-box"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
+          {_pitch(cartola, resolver, None, my_ids, "indicado")}</div>
+      </div>"""
+
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(SUMMARY_CSS)}</style></head>
     <body><div class="art wide" id="capture">{_demo_banner(evaluation)}
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title">COMO FORAM MINHAS INDICAÇÕES</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]} - resultado</div></div></header>
       <div class="stats">{stats_html}</div>
-      <div class="teams">
-        <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
-          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção")}</div>
-        <div class="team-box"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
-          {_pitch(cartola, resolver, None, my_ids, "indicado")}</div>
-      </div>
+      {teams_html}
       <div class="forms"><h3>Outras formações</h3>{"".join(chips)}<span style="font-weight:700">{forms_note}</span></div>
       <footer class="legend"><span><i style="background:#ffc61e"></i>Indicado que entrou na seleção do Cartola</span>
         <span><i style="background:#38c172"></i>Capitão (pontuação x1,5)</span><span><i style="background:#e0a100"></i>Mitou: mais de 10 pts</span></footer>

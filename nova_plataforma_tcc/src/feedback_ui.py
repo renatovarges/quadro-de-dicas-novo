@@ -18,6 +18,8 @@ from .feedback import (
 from .feedback_render import build_all_arts
 from .indications_store import (
     archive_latest_round,
+    archive_most_escalated,
+    load_most_escalated,
     list_saved_rounds,
     load_archive,
     load_results,
@@ -33,6 +35,19 @@ def _saved_rounds(remote_config, refresh: bool = False) -> list[int]:
     if refresh or "fb_saved_rounds" not in st.session_state:
         st.session_state["fb_saved_rounds"] = list_saved_rounds(PROJECT, remote_config)
     return st.session_state["fb_saved_rounds"]
+
+
+def _most_escalated(round_number: int, remote_config) -> dict | None:
+    """Mais escalados guardados da rodada; se faltar e o mercado ainda estiver fechado nela, captura agora."""
+    try:
+        stored = load_most_escalated(round_number, remote_config)
+        if stored:
+            return stored
+        if archive_most_escalated(remote_config) == round_number:
+            return load_most_escalated(round_number, remote_config)
+    except Exception:
+        pass
+    return None
 
 
 def _format_saved_at(snapshot: dict) -> str:
@@ -57,6 +72,11 @@ def _show_evaluation(analyzer, evaluation: dict) -> None:
         f"{s['above_average']} acima da média, {len(s['mitou'])} mitaram, "
         f"aproveitamento de {s['check_rate']}% nos critérios. Total de {len(arts)} arte(s)."
     )
+    if not evaluation.get("most_escalated"):
+        st.info(
+            "Os mais escalados desta rodada não foram guardados (só dá para capturar com o mercado fechado). "
+            "O resumo sai com minha seleção x seleção da rodada."
+        )
     tabs = st.tabs([art["label"] for art in arts])
     for tab, art in zip(tabs, arts):
         with tab:
@@ -141,6 +161,12 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
                 st.toast(f"Pontuação da rodada {archived} arquivada para o histórico.")
         except Exception:
             pass
+        try:
+            captured = archive_most_escalated(remote_config)
+            if captured:
+                st.toast(f"Mais escalados da rodada {captured} guardados.")
+        except Exception:
+            pass
 
     with st.expander("Histórico de pontuações (arquivo da API)"):
         archived_rounds = (
@@ -148,15 +174,18 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
             if st.session_state.get("fb_show_archive")
             else []
         )
-        if st.button("Atualizar/arquivar a pontuação da última rodada agora", use_container_width=True):
+        if st.button("Atualizar/arquivar pontuação e mais escalados agora", use_container_width=True):
             try:
                 archived = archive_latest_round(PROJECT, remote_config)
+                captured = archive_most_escalated(remote_config)
+                if captured:
+                    st.success(f"Mais escalados da rodada {captured} guardados (números finais de escalações).")
                 if archived:
                     st.success(f"Pontuação da rodada {archived} arquivada.")
-                else:
+                elif not captured:
                     market = fetch_market_status()
                     st.info(
-                        "Nada novo para arquivar: o Cartola só libera a rodada finalizada quando o mercado reabre "
+                        "Nada novo para arquivar: a pontuação da rodada só é liberada quando o mercado reabre, e os mais escalados só são guardados com o mercado fechado "
                         f"(situação agora: rodada {market.get('rodada_atual')}, mercado "
                         f"{'aberto' if market.get('status_mercado') == 1 else 'fechado'}), ou ela já está arquivada."
                     )
@@ -249,7 +278,9 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
                                 "A pontuação só fica disponível enquanto a rodada é a última fechada."
                             )
                 if results:
-                    st.session_state["fb_eval"] = evaluate_snapshot(snapshot, results)
+                    st.session_state["fb_eval"] = evaluate_snapshot(
+                        snapshot, results, _most_escalated(chosen_round, remote_config)
+                    )
                     st.session_state["fb_pngs"] = None
     else:
         st.info("Ainda não há rodadas salvas. Feche as indicações acima antes da rodada começar.")
@@ -264,7 +295,7 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
             try:
                 live = fetch_round_results()
                 snapshot = build_snapshot(analyzer, players_by_position, target_round, window_n, filter_mode, PROJECT)
-                evaluation = evaluate_snapshot(snapshot, live)
+                evaluation = evaluate_snapshot(snapshot, live, _most_escalated(live["round"], remote_config))
                 evaluation["demo"] = True
                 evaluation["round"] = live["round"]
                 st.session_state["fb_eval"] = evaluation

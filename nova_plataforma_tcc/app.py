@@ -138,6 +138,7 @@ def invalidate_remote_cache() -> None:
 def ensure_state():
     st.session_state.setdefault("market_data", pd.DataFrame())
     st.session_state.setdefault("preview_html", None)
+    st.session_state.setdefault("preview_pages", None)
     st.session_state.setdefault("preview_cards", [])
     st.session_state.setdefault("preview_context", {})
     st.session_state.setdefault("preview_png_bytes", None)
@@ -278,12 +279,35 @@ def build_cards_for_position(
     ]
 
 
+# No TCC, posições com muitos jogadores são divididas em mais de uma arte (leitura no celular).
+MAX_CARDS_PER_ART = 6 if BRAND.key == "tcc" else 10**6
+
+
+def split_cards(cards: list[dict]) -> list[list[dict]]:
+    """Divide em páginas equilibradas (ex.: 11 -> 6 + 5, 12 -> 6 + 6)."""
+    if len(cards) <= MAX_CARDS_PER_ART:
+        return [cards]
+    pages = -(-len(cards) // MAX_CARDS_PER_ART)
+    size = -(-len(cards) // pages)
+    return [cards[i * size:(i + 1) * size] for i in range(pages)]
+
+
+def build_position_pages_html(position_name: str, target_round: int, window_n: int, filter_mode: str, cards: list[dict]) -> list[str]:
+    parts = split_cards(cards)
+    return [
+        build_position_preview_html(position_name, target_round, window_n, filter_mode, part, page=number, pages=len(parts))
+        for number, part in enumerate(parts, start=1)
+    ]
+
+
 def build_position_preview_html(
     position_name: str,
     target_round: int,
     window_n: int,
     filter_mode: str,
     cards: list[dict],
+    page: int = 1,
+    pages: int = 1,
 ) -> str:
     return build_preview_html(
         position_key=position_name,
@@ -293,6 +317,8 @@ def build_position_preview_html(
         cards=cards,
         include_client_export=False,
         show_phrase=st.session_state.get("show_phrase", True),
+        page=page,
+        pages=pages,
     )
 
 
@@ -420,8 +446,10 @@ def render_position_pngs(positions: list[str], scale: float = 4) -> list[tuple[s
         if not cards:
             continue
         warn_missing_photos(cards, pos)
-        htmls.append(build_position_preview_html(pos, target_round, window_n, filter_mode, cards))
-        used.append(pos)
+        pages = build_position_pages_html(pos, target_round, window_n, filter_mode, cards)
+        for number, html in enumerate(pages, start=1):
+            htmls.append(html)
+            used.append(pos if len(pages) == 1 else f"{pos}_{number}")
     return list(zip(used, export_htmls_to_png(htmls, scale)))
 
 
@@ -913,13 +941,10 @@ with tab_preview:
             "window_n": window_n,
             "filter_mode": filter_mode,
         }
-        st.session_state["preview_html"] = build_position_preview_html(
-            position_name=position_key,
-            target_round=target_round,
-            window_n=window_n,
-            filter_mode=filter_mode,
-            cards=rendered_cards,
+        st.session_state["preview_pages"] = build_position_pages_html(
+            position_key, target_round, window_n, filter_mode, rendered_cards
         )
+        st.session_state["preview_html"] = st.session_state["preview_pages"][0]
         st.session_state["preview_png_bytes"] = None
         st.session_state["preview_png_name"] = ""
         st.session_state["preview_png_scale"] = None
@@ -933,32 +958,40 @@ with tab_preview:
         with export_col1:
             if st.button("Gerar PNG pelo servidor", use_container_width=True, type="secondary"):
                 preview_context = st.session_state.get("preview_context", {})
-                export_html = build_position_preview_html(
-                    position_name=preview_context["position_key"],
-                    target_round=preview_context["target_round"],
-                    window_n=preview_context["window_n"],
-                    filter_mode=preview_context["filter_mode"],
-                    cards=st.session_state.get("preview_cards", []),
+                export_htmls = build_position_pages_html(
+                    preview_context["position_key"],
+                    preview_context["target_round"],
+                    preview_context["window_n"],
+                    preview_context["filter_mode"],
+                    st.session_state.get("preview_cards", []),
                 )
+                base_name = f'indicacoes_{preview_context["position_key"].lower()}_rodada_{preview_context["target_round"]}'
                 with st.spinner("Gerando PNG em alta qualidade..."):
                     try:
-                        export = export_htmls_to_png([export_html], 4)[0]
-                        st.session_state["preview_png_bytes"] = export.png
-                        st.session_state["preview_png_scale"] = export.scale
-                        st.session_state["preview_png_name"] = (
-                            f'indicacoes_{preview_context["position_key"].lower()}_rodada_{preview_context["target_round"]}.png'
+                        exports = export_htmls_to_png(export_htmls, 4)
+                        if len(exports) == 1:
+                            st.session_state["preview_png_bytes"] = exports[0].png
+                            st.session_state["preview_png_name"] = f"{base_name}.png"
+                        else:
+                            st.session_state["preview_png_bytes"] = combine_files_to_zip_bytes(
+                                [(f"{base_name}_parte{i}.png", e.png) for i, e in enumerate(exports, start=1)]
+                            )
+                            st.session_state["preview_png_name"] = f"{base_name}.zip"
+                        st.session_state["preview_png_scale"] = exports[0].scale
+                        st.success(
+                            f"PNG pronto em {exports[0].scale:g}x." if len(exports) == 1
+                            else f"{len(exports)} artes prontas (posição dividida para ficar legível); baixe o .zip."
                         )
-                        st.success(f"PNG pronto em {export.scale:g}x ({export.width}x{export.height}px).")
-                        describe_exports([export])
+                        describe_exports(exports)
                     except Exception as exc:
                         st.error(f"Não consegui gerar o PNG no servidor: {str(exc).strip() or repr(exc)}")
         with export_col2:
             if st.session_state.get("preview_png_bytes"):
                 st.download_button(
-                    "Baixar PNG pronto",
+                    "Baixar PNG pronto" if st.session_state["preview_png_name"].endswith(".png") else "Baixar PNGs (.zip)",
                     data=st.session_state["preview_png_bytes"],
                     file_name=st.session_state["preview_png_name"],
-                    mime="image/png",
+                    mime="image/png" if st.session_state["preview_png_name"].endswith(".png") else "application/zip",
                     key=f"download_png_ready_{target_round}_{position_key}",
                     use_container_width=True,
                 )
@@ -1048,7 +1081,14 @@ with tab_preview:
                 use_container_width=True,
             )
 
-        st.components.v1.html(st.session_state["preview_html"], height=1700, scrolling=True)
+        preview_pages = st.session_state.get("preview_pages") or [st.session_state["preview_html"]]
+        if len(preview_pages) == 1:
+            st.components.v1.html(preview_pages[0], height=1700, scrolling=True)
+        else:
+            st.info(f"Esta posição foi dividida em {len(preview_pages)} artes para o texto ficar legível no celular.")
+            for part_tab, part_html in zip(st.tabs([f"Parte {i}" for i in range(1, len(preview_pages) + 1)]), preview_pages):
+                with part_tab:
+                    st.components.v1.html(part_html, height=1700, scrolling=True)
     else:
         st.info("Monte a lista e clique em gerar visualização.")
 

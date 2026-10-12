@@ -1,0 +1,167 @@
+{
+ "source": "https://gatomestre.ge.globo.com/mais-escalados-do-cartola/",
+ "captured_at": "2026-10-12T21:25:45.248732+00:00",
+ "players": [
+  {
+   "athlete_id": 143193,
+   "name": "Viveros",
+   "position": "Atacantes",
+   "group": "titular",
+   "count": 507386,
+   "club_code": "CAP",
+   "full_name": "Kevin Stiven Viveros Rodallega",
+   "team": "ATHLETICO-PR"
+  },
+  {
+   "athlete_id": 124552,
+   "name": "Lescano",
+   "position": "Meias",
+   "group": "titular",
+   "count": 438546,
+   "club_code": "VAS",
+   "full_name": "Alan Hernán Lescano",
+   "team": "VASCO"
+  },
+  {
+   "athlete_id": 107093,
+   "name": "Luciano Juba",
+   "position": "Laterais",
+   "group": "titular",
+   "count": 418467,
+   "club_code": "BAH",
+   "full_name": "Luciano Batista da Silva Júnior",
+   "team": "BAHIA"
+  },
+  {
+   "athlete_id": 99815,
+   "name": "Arias",
+   "position": "Meias",
+   "group": "titular",
+   "count": 333579,
+   "club_code": "PAL",
+   "full_name": "Jhon Adolfo Arias Andrade",
+   "team": "PALMEIRAS"
+  },
+  {
+   "athlete_id": 96610,
+   "name": "Matheus Pereira",
+   "position": "Meias",
+   "group": "titular",
+   "count": 319526,
+   "club_code": "CRU",
+   "full_name": "Matheus Fellipe Costa Pereira",
+   "team": "CRUZEIRO"
+  },
+  {
+   "athlete_id": 128177,
+   "name": "Pedro Emanuel",
+   "position": "Técnicos",
+   "group": "tecnico",
+   "count": 317978,
+   "club_code": "VAS",
+   "full_name": "Pedro Emanuel dos Santos Martins Silva",
+   "team": "VASCO"
+  },
+  {
+   "athlete_id": 116706,
+   "name": "Andrés Gómez",
+   "position": "Atacantes",
+   "group": "titular",
+   "count": 296876,
+   "club_code": "VAS",
+   "full_name": "Carlos Andrés Gómez Hinestroza",
+   "team": "VASCO"
+  },
+  {
+   "athlete_id": 71684,
+   "name": "Gustavo Gómez",
+   "position": "Zagueiros",
+   "group": "titular",
+   "count": 289251,
+   "club_code": "PAL",
+   "full_name": "Gustavo Raúl Gómez Portillo",
+   "team": "PALMEIRAS"
+  },
+  {
+   "athlete_id": 113103,
+   "name": "Flaco López",
+   "position": "Atacantes",
+   "group": "titular",
+   "count": 251015,
+   "club_code": "PAL",
+   "full_name": "José Manuel Alberto López",
+   "team": "PALMEIRAS"
+  },
+  {
+   "athlete_id": 114323,
+   "name": "Colidio",
+   "position": "Atacantes",
+   "group": "reserva",
+   "count": 244933,
+   "club_code": "VAS",
+   "full_name": "Facundo Colidio",
+   "team": "VASCO"
+  },
+  {
+   "athlete_id": 118655,
+   "name": "Saldivia",
+   "position": "Zagueiros",
+   "group": "titular",
+   "count": 172904,
+   "club_code": "VAS",
+   "full_name": "Alan Gabriel Saldivia Vázquez",
+   "team": "VASCO"
+  },
+  {
+   "athlete_id": 98517,
+   "name": "Jean Lucas",
+   "position": "Meias",
+   "group": "reserva",
+   "count": 138521,
+   "club_code": "BAH",
+   "full_name": "Jean Lucas de Souza Oliveira",
+   "team": "BAHIA"
+  },
+  {
+   "athlete_id": 87008,
+   "name": "Léo Jardim",
+   "position": "Goleiros",
+   "group": "titular",
+   "count": 125852,
+   "club_code": "VAS",
+   "full_name": "Leonardo César Jardim",
+   "team": "VASCO"
+  },
+  {
+   "athlete_id": 102130,
+   "name": "Piquerez",
+   "position": "Laterais",
+   "group": "titular",
+   "count": 115874,
+   "club_code": "PAL",
+   "full_name": "Joaquín Piquerez Moreira",
+   "team": "PALMEIRAS"
+  },
+  {
+   "athlete_id": 97653,
+   "name": "Murilo",
+   "position": "Zagueiros",
+   "group": "reserva",
+   "count": 75662,
+   "club_code": "PAL",
+   "full_name": "Murilo Cerqueira Paim",
+   "team": "PALMEIRAS"
+  },
+  {
+   "athlete_id": 110668,
+   "name": "Esquivel",
+   "position": "Laterais",
+   "group": "reserva",
+   "count": 68142,
+   "club_code": "CAP",
+   "full_name": "Lucas Ángel Esquivel",
+   "team": "ATHLETICO-PR"
+  }
+ ],
+ "round": 30
+}

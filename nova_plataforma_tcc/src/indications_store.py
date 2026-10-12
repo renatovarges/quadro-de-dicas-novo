@@ -15,8 +15,8 @@ from .auth_store import AUTH_DIR, _load_remote_payload, _save_remote_payload, _r
 
 def _record_id(kind: str, project: str, round_number: int) -> str:
     """Indicações são por marca (tcc/guardiola); a pontuação real da rodada é a mesma para todos."""
-    if kind == "resultado":
-        return f"resultado_r{int(round_number):02d}"
+    if kind in ("resultado", "mais_escalados"):
+        return f"{kind}_r{int(round_number):02d}"
     return f"{kind}_{project}_r{int(round_number):02d}"
 
 
@@ -120,3 +120,35 @@ def archive_latest_round(project: str, remote_config: dict | None = None) -> int
         return None
     save_results(project, results, remote_config)
     return finished_round
+
+
+def save_most_escalated(round_number: int, payload: dict, remote_config: dict | None = None) -> None:
+    _save(_record_id("mais_escalados", "", round_number), {**payload, "round": int(round_number)}, remote_config)
+
+
+def load_most_escalated(round_number: int, remote_config: dict | None = None) -> dict | None:
+    """Supabase/local primeiro; depois o arquivo de segurança commitado no repositório."""
+    from .most_escalated import load_repo_archive
+
+    return _load(_record_id("mais_escalados", "", round_number), remote_config) or load_repo_archive(round_number)
+
+
+def archive_most_escalated(remote_config: dict | None = None) -> int | None:
+    """Guarda os mais escalados da rodada atual, mas só com o mercado FECHADO (números finais).
+
+    Devolve a rodada guardada ou None (mercado aberto, já guardado, ou página indisponível).
+    """
+    from .feedback import fetch_market_status
+    from .most_escalated import fetch_most_escalated, save_repo_archive  # noqa: F401
+
+    market = fetch_market_status()
+    if market.get("status_mercado") != 2:  # 2 = fechado
+        return None
+    round_number = int(market.get("rodada_atual", 0))
+    if load_most_escalated(round_number, remote_config):
+        return None
+    payload = fetch_most_escalated()
+    if len(payload["players"]) < 12:
+        return None  # página incompleta: não guarda dado ruim
+    save_most_escalated(round_number, payload, remote_config)
+    return round_number

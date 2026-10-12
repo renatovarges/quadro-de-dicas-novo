@@ -348,7 +348,7 @@ def _match_without_id(entry: dict, results: dict) -> int | None:
     return None
 
 
-def evaluate_snapshot(snapshot: dict, results: dict) -> dict:
+def evaluate_snapshot(snapshot: dict, results: dict, most_escalated: dict | None = None) -> dict:
     ranks = position_ranks(results)
     pool = results["players"]
     snapshot = {**snapshot, "players": [dict(p) for p in snapshot["players"]]}
@@ -373,9 +373,16 @@ def evaluate_snapshot(snapshot: dict, results: dict) -> dict:
     for player in evaluated:
         player["in_cartola_team"] = player["athlete_id"] in cartola_ids
 
+    escalated_team = None
+    if most_escalated and most_escalated.get("players"):
+        from .most_escalated import build_team as build_escalated_team
+
+        escalated_team = build_escalated_team(most_escalated, results)
+
     return {
         "round": snapshot["round"],
         "players": evaluated,
+        "most_escalated": escalated_team,
         "cartola_team": cartola_team,
         "my_team": best_formations(evaluated),
         "summary": summarize(evaluated),
