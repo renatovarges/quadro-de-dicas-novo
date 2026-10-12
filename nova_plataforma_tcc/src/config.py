@@ -11,6 +11,10 @@ DEFAULT_EXCEL_FILE = ROOT_PROJECT_DIR / "Scouts Pós R11 2026.xlsx"
 BACKGROUND_FILE = LOGOS_DIR / "background.png"
 MAIN_LOGO_FILE = LOGOS_DIR / "logo_tcc.png"
 MAIN_LOGO_WHITE_FILE = LOGOS_DIR / "logo_tcc_branco.png"
+PLAYER_PHOTOS_DIR = ASSETS_DIR / "players"
+PHOTO_OVERRIDES_FILE = ASSETS_DIR / "photo_overrides.json"
+# Contas de hospedagem que deixaram de existir (Cloudinary respondeu "cloud_name ddrygy9bm is disabled").
+DEAD_PHOTO_PREFIXES = ("https://res.cloudinary.com/ddrygy9bm/",)
 BARLOW_DIR = FONTS_DIR / "barlow"
 FONT_REGULAR_FILE = BARLOW_DIR / "Barlow-Regular.ttf"
 FONT_MEDIUM_FILE = BARLOW_DIR / "Barlow-Medium.ttf"

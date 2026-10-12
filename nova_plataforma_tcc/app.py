@@ -1,4 +1,5 @@
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -20,7 +21,8 @@ from src.data_sources import (
     load_rounds_file,
     mpv_map_from_cache_payload,
 )
-from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes
+from src.exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, export_html_to_png_bytes, export_htmls_to_png
+from src.photos import photo_data_uri
 from src.render import build_preview_html
 from src.summary_render import build_summary_html
 from src.utils import display_profile_label, normalize_text, order_indication_players, position_storage_key
@@ -85,25 +87,46 @@ if not check_pin():
     st.stop()
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def get_rounds():
     return load_rounds_file(ROUNDS_FILE)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def get_photo_index():
     return build_photo_index(PHOTOS_FILE)
 
 
-@st.cache_data(show_spinner=False)
-def get_excel_data(file_bytes: bytes | None, uploaded_name: str | None):
+@st.cache_resource(show_spinner="Carregando planilha de scouts...")
+def get_analyzer(file_bytes: bytes | None, uploaded_name: str | None) -> ScoutAnalyzer:
+    """Planilha + analisador ficam em memória e não são recriados a cada clique."""
     if file_bytes and uploaded_name:
         temp_dir = ROOT_DIR / ".tmp"
         temp_dir.mkdir(exist_ok=True)
         temp_path = temp_dir / uploaded_name
         temp_path.write_bytes(file_bytes)
-        return load_excel_data(temp_path)
-    return load_excel_data(DEFAULT_EXCEL_FILE)
+        datasets = load_excel_data(temp_path)
+    else:
+        datasets = load_excel_data(DEFAULT_EXCEL_FILE)
+    return ScoutAnalyzer(datasets["POR_JOGO"], get_rounds(), get_photo_index())
+
+
+REMOTE_CACHE_SECONDS = 120
+
+
+def remote_cached(name: str, loader):
+    """Evita consultar o Supabase a cada interação: guarda o resultado por alguns minutos."""
+    entry = st.session_state.get(f"_remote_{name}")
+    if entry and time.monotonic() - entry[0] < REMOTE_CACHE_SECONDS:
+        return entry[1]
+    value = loader()
+    st.session_state[f"_remote_{name}"] = (time.monotonic(), value)
+    return value
+
+
+def invalidate_remote_cache() -> None:
+    for name in ("auth", "mpv_cache"):
+        st.session_state.pop(f"_remote_{name}", None)
 
 
 def ensure_state():
@@ -303,6 +326,91 @@ def build_indications_csv_bytes(target_round: int) -> bytes | None:
     return export_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
 
 
+@st.fragment
+def render_quick_selection(quick_position: str, status_filter: list[str]) -> None:
+    """Grade de seleção rápida. É um fragmento: marcar uma caixinha re-executa só esta grade,
+    não a página inteira (barra lateral, abas, indicadores etc.)."""
+    market_df = st.session_state["market_data"]
+    position_names = set(POSITION_CONFIG[quick_position]["market_positions"])
+    quick_df = market_df[market_df["posicao_norm"].isin(position_names)].copy()
+    if status_filter:
+        quick_df = quick_df[quick_df["status"].isin(status_filter)]
+    selected_tcc_ids = {p.get("athlete_id") for p in st.session_state[position_storage_key(quick_position)]}
+    selected_md3_ids = {p.get("athlete_id") for p in st.session_state[md3_storage_key(quick_position)]}
+    quick_df.insert(0, "MD3", quick_df["atleta_id"].isin(selected_md3_ids))
+    quick_df.insert(0, "TCC", quick_df["atleta_id"].isin(selected_tcc_ids))
+    edited = st.data_editor(
+        quick_df[["TCC", "MD3", "atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"]],
+        hide_index=True,
+        disabled=["atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"],
+        column_config={
+            "TCC": st.column_config.CheckboxColumn("TCC"),
+            "MD3": st.column_config.CheckboxColumn("MD3"),
+            "atleta_id": None,
+            "nome": "Jogador", "time": "Clube", "status": "Status",
+            "preco": st.column_config.NumberColumn("Preço", format="C$ %.2f"),
+            "minimo_valorizar": st.column_config.NumberColumn("MPV", format="%.2f"),
+        },
+        use_container_width=True,
+        key=f"quick_grid_{quick_position}",
+    )
+    if st.button("Aplicar seleção", key=f"apply_quick_{quick_position}", type="primary", use_container_width=True):
+        chosen_tcc_ids = set(edited.loc[edited["TCC"], "atleta_id"].tolist())
+        chosen_md3_ids = set(edited.loc[edited["MD3"], "atleta_id"].tolist())
+        visible_ids = set(quick_df["atleta_id"].tolist())
+        for project, chosen_ids in (("tcc", chosen_tcc_ids), ("md3", chosen_md3_ids)):
+            state_key = position_storage_key(quick_position) if project == "tcc" else md3_storage_key(quick_position)
+            current = st.session_state[state_key]
+            current[:] = [
+                player for player in current
+                if player.get("athlete_id") not in visible_ids or player.get("athlete_id") in chosen_ids
+            ]
+            chosen_rows = quick_df[quick_df["atleta_id"].isin(chosen_ids)]
+            for _, row in chosen_rows.iterrows():
+                add_player_to_project(quick_position, market_row_to_player(row.to_dict()), project)
+            sort_players_state(state_key)
+        tcc_count = len(st.session_state[position_storage_key(quick_position)])
+        md3_count = len(st.session_state[md3_storage_key(quick_position)])
+        st.toast(f"{quick_position}: {tcc_count} no TCC e {md3_count} no MD3.")
+        st.rerun()  # reexecuta a página inteira para atualizar as listas de indicadores abaixo
+
+
+def describe_exports(exports, label: str = "") -> None:
+    """Avisa quando a escala teve de ser reduzida ou quando alguma imagem não carregou."""
+    prefix = f"{label}: " if label else ""
+    for export in exports:
+        if export.scale_reduced:
+            st.info(
+                f"{prefix}a arte é muito alta para {export.requested_scale:g}x; foi exportada em "
+                f"{export.scale:g}x ({export.width}x{export.height}px) para não ficar cortada ou deformada."
+            )
+        if export.broken_images:
+            st.warning(f"{prefix}{len(export.broken_images)} imagem(ns) não carregaram na arte. Gere novamente.")
+
+
+def warn_missing_photos(cards: list[dict], label: str = "") -> None:
+    missing = [f'{card["name"]} ({card["team"].title()})' for card in cards if not photo_data_uri(card["photo_url"])]
+    if missing:
+        prefix = f"{label}: " if label else ""
+        st.warning(
+            f"{prefix}{len(missing)} jogador(es) SEM FOTO na arte: " + ", ".join(missing) +
+            ". Rode `python nova_plataforma_tcc/tools/buscar_fotos_faltantes.py` ou adicione a foto em `assets/players/`."
+        )
+
+
+def render_position_pngs(positions: list[str], scale: float = 4) -> list[tuple[str, object]]:
+    """Gera os PNGs de várias posições numa única sessão do navegador."""
+    htmls, used = [], []
+    for pos in positions:
+        cards = build_cards_for_position(analyzer, pos, target_round, window_n, filter_mode)
+        if not cards:
+            continue
+        warn_missing_photos(cards, pos)
+        htmls.append(build_position_preview_html(pos, target_round, window_n, filter_mode, cards))
+        used.append(pos)
+    return list(zip(used, export_htmls_to_png(htmls, scale)))
+
+
 ensure_state()
 sort_all_indication_lists()
 
@@ -334,8 +442,7 @@ with st.sidebar:
     st.subheader("Fontes")
     uploaded_excel = st.file_uploader("Planilha de scouts", type=["xlsx"])
     remote_config = get_remote_auth_config()
-    saved_tokens = load_globo_auth(remote_config)
-    saved_auth = bool(saved_tokens)
+    saved_auth = remote_cached("auth", lambda: bool(load_globo_auth(remote_config)))
     gm_token = ""
     globo_id_token = ""
     globo_refresh_token = ""
@@ -355,8 +462,9 @@ with st.sidebar:
             globo_refresh_token = st.text_input("Refresh token", type="password")
         if saved_auth and st.button("Desconectar conta Globo", use_container_width=True):
             delete_globo_auth(remote_config)
+            invalidate_remote_cache()
             st.rerun()
-    latest_cache = load_mpv_cache(remote_config)
+    latest_cache = remote_cached("mpv_cache", lambda: load_mpv_cache(remote_config))
     if latest_cache:
         st.session_state["mpv_cache"] = latest_cache
     cache_description = describe_mpv_cache(st.session_state.get("mpv_cache"))
@@ -367,7 +475,8 @@ with st.sidebar:
             active_access_token = ""
             live_mpv_map: dict[int, float] = {}
             live_mpv_count = 0
-            latest_cache = load_mpv_cache(remote_config)
+            invalidate_remote_cache()
+            latest_cache = remote_cached("mpv_cache", lambda: load_mpv_cache(remote_config))
             if latest_cache:
                 st.session_state["mpv_cache"] = latest_cache
             cached_mpv_map = mpv_map_from_cache_payload(st.session_state.get("mpv_cache"))
@@ -381,6 +490,7 @@ with st.sidebar:
                         "refresh_token": globo_refresh_token.strip(),
                     }
                     save_globo_auth(new_tokens, remote_config)
+                    invalidate_remote_cache()
                     active_access_token = new_tokens["access_token"]
                     st.caption("Tokens salvos. A partir de agora, somente o robô fará a renovação.")
                 else:
@@ -414,6 +524,7 @@ with st.sidebar:
                     )
                     try:
                         save_mpv_cache(cache_payload, remote_config)
+                        invalidate_remote_cache()
                         st.session_state["mpv_cache"] = cache_payload
                         st.caption("Cache MPV salvo para o robô e para os próximos acessos.")
                     except Exception as exc:
@@ -444,11 +555,10 @@ with st.sidebar:
                 st.success(f"{total_market} atletas carregados.")
                 st.info("MPV não carregado porque nenhum token Globo foi informado.")
 
-datasets = get_excel_data(
+analyzer = get_analyzer(
     uploaded_excel.getvalue() if uploaded_excel else None,
     uploaded_excel.name if uploaded_excel else None,
 )
-analyzer = ScoutAnalyzer(datasets["POR_JOGO"], rounds_data, photo_index)
 indications_csv_bytes = build_indications_csv_bytes(target_round)
 
 market_df = st.session_state["market_data"]
@@ -491,47 +601,7 @@ with tab_quick:
         quick_tabs = st.tabs(list(POSITION_CONFIG.keys()))
         for quick_tab, quick_position in zip(quick_tabs, POSITION_CONFIG.keys()):
             with quick_tab:
-                position_names = set(POSITION_CONFIG[quick_position]["market_positions"])
-                quick_df = market_df[market_df["posicao_norm"].isin(position_names)].copy()
-                if status_filter:
-                    quick_df = quick_df[quick_df["status"].isin(status_filter)]
-                selected_tcc_ids = {p.get("athlete_id") for p in st.session_state[position_storage_key(quick_position)]}
-                selected_md3_ids = {p.get("athlete_id") for p in st.session_state[md3_storage_key(quick_position)]}
-                quick_df.insert(0, "MD3", quick_df["atleta_id"].isin(selected_md3_ids))
-                quick_df.insert(0, "TCC", quick_df["atleta_id"].isin(selected_tcc_ids))
-                edited = st.data_editor(
-                    quick_df[["TCC", "MD3", "atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"]],
-                    hide_index=True,
-                    disabled=["atleta_id", "nome", "time", "status", "preco", "minimo_valorizar"],
-                    column_config={
-                        "TCC": st.column_config.CheckboxColumn("TCC"),
-                        "MD3": st.column_config.CheckboxColumn("MD3"),
-                        "atleta_id": None,
-                        "nome": "Jogador", "time": "Clube", "status": "Status",
-                        "preco": st.column_config.NumberColumn("Preço", format="C$ %.2f"),
-                        "minimo_valorizar": st.column_config.NumberColumn("MPV", format="%.2f"),
-                    },
-                    use_container_width=True,
-                    key=f"quick_grid_{quick_position}",
-                )
-                if st.button("Aplicar seleção", key=f"apply_quick_{quick_position}", type="primary", use_container_width=True):
-                    chosen_tcc_ids = set(edited.loc[edited["TCC"], "atleta_id"].tolist())
-                    chosen_md3_ids = set(edited.loc[edited["MD3"], "atleta_id"].tolist())
-                    visible_ids = set(quick_df["atleta_id"].tolist())
-                    for project, chosen_ids in (("tcc", chosen_tcc_ids), ("md3", chosen_md3_ids)):
-                        state_key = position_storage_key(quick_position) if project == "tcc" else md3_storage_key(quick_position)
-                        current = st.session_state[state_key]
-                        current[:] = [
-                            player for player in current
-                            if player.get("athlete_id") not in visible_ids or player.get("athlete_id") in chosen_ids
-                        ]
-                        chosen_rows = quick_df[quick_df["atleta_id"].isin(chosen_ids)]
-                        for _, row in chosen_rows.iterrows():
-                            add_player_to_project(quick_position, market_row_to_player(row.to_dict()), project)
-                        sort_players_state(state_key)
-                    tcc_count = len(st.session_state[position_storage_key(quick_position)])
-                    md3_count = len(st.session_state[md3_storage_key(quick_position)])
-                    st.success(f"Seleção atualizada: {tcc_count} no TCC e {md3_count} no MD3.")
+                render_quick_selection(quick_position, status_filter)
 
         st.divider()
         st.subheader("Indicadores TCC")
@@ -799,6 +869,7 @@ with tab_preview:
     if st.button("Gerar visualização", type="primary", use_container_width=True):
         rendered_cards = build_cards_for_position(analyzer, position_key, target_round, window_n, filter_mode)
         st.session_state["preview_cards"] = rendered_cards
+        warn_missing_photos(rendered_cards)
         st.session_state["preview_context"] = {
             "position_key": position_key,
             "target_round": target_round,
@@ -832,25 +903,18 @@ with tab_preview:
                     filter_mode=preview_context["filter_mode"],
                     cards=st.session_state.get("preview_cards", []),
                 )
-                last_error = None
                 with st.spinner("Gerando PNG em alta qualidade..."):
-                    for scale in [4, 3, 2]:
-                        try:
-                            png_bytes = export_html_to_png_bytes(export_html, scale=scale)
-                            st.session_state["preview_png_bytes"] = png_bytes
-                            st.session_state["preview_png_scale"] = scale
-                            st.session_state["preview_png_name"] = (
-                                f'indicacoes_{preview_context["position_key"].lower()}_rodada_{preview_context["target_round"]}.png'
-                            )
-                            last_error = None
-                            break
-                        except Exception as exc:
-                            last_error = exc
-                    if last_error and not st.session_state.get("preview_png_bytes"):
-                        error_text = str(last_error).strip() or repr(last_error)
-                        st.error(f"Não consegui gerar o PNG no servidor: {error_text}")
-                    elif st.session_state.get("preview_png_bytes"):
-                        st.success(f'PNG pronto. Exportação concluída em {st.session_state["preview_png_scale"]}x.')
+                    try:
+                        export = export_htmls_to_png([export_html], 4)[0]
+                        st.session_state["preview_png_bytes"] = export.png
+                        st.session_state["preview_png_scale"] = export.scale
+                        st.session_state["preview_png_name"] = (
+                            f'indicacoes_{preview_context["position_key"].lower()}_rodada_{preview_context["target_round"]}.png'
+                        )
+                        st.success(f"PNG pronto em {export.scale:g}x ({export.width}x{export.height}px).")
+                        describe_exports([export])
+                    except Exception as exc:
+                        st.error(f"Não consegui gerar o PNG no servidor: {str(exc).strip() or repr(exc)}")
         with export_col2:
             if st.session_state.get("preview_png_bytes"):
                 st.download_button(
@@ -870,54 +934,17 @@ with tab_preview:
                 if not positions_with_cards:
                     st.error("Não há jogadores adicionados em nenhuma posição para montar o PDF.")
                 else:
-                    generated_pngs: list[bytes] = []
-                    included_positions: list[str] = []
-                    last_error = None
-                    failed_position = None
                     with st.spinner("Gerando PDF consolidado com todas as posições..."):
-                        for pos in positions_with_cards:
-                            cards = build_cards_for_position(analyzer, pos, target_round, window_n, filter_mode)
-                            if not cards:
-                                continue
-                            html = build_position_preview_html(
-                                position_name=pos,
-                                target_round=target_round,
-                                window_n=window_n,
-                                filter_mode=filter_mode,
-                                cards=cards,
+                        try:
+                            rendered = render_position_pngs(positions_with_cards, 4)
+                            describe_exports([item for _, item in rendered])
+                            st.session_state["preview_pdf_bytes"] = combine_pngs_to_pdf_bytes(
+                                [item.png for _, item in rendered]
                             )
-                            png_bytes = None
-                            for scale in [4, 3, 2]:
-                                try:
-                                    png_bytes = export_html_to_png_bytes(html, scale=scale)
-                                    break
-                                except Exception as exc:
-                                    last_error = exc
-                                    png_bytes = None
-                            if not png_bytes:
-                                failed_position = pos
-                                break
-                            generated_pngs.append(png_bytes)
-                            included_positions.append(pos)
-
-                        if generated_pngs and not failed_position:
-                            try:
-                                st.session_state["preview_pdf_bytes"] = combine_pngs_to_pdf_bytes(generated_pngs)
-                                st.session_state["preview_pdf_name"] = (
-                                    f'indicacoes_completas_rodada_{target_round}.pdf'
-                                )
-                                st.success(
-                                    "PDF pronto com: " + ", ".join(included_positions) + "."
-                                )
-                            except Exception as exc:
-                                error_text = str(exc).strip() or repr(exc)
-                                st.error(f"Não consegui montar o PDF final: {error_text}")
-                        else:
-                            error_text = str(last_error).strip() if last_error else "Falha ao gerar as páginas do PDF."
-                            if failed_position:
-                                st.error(f"Não consegui gerar o PDF consolidado na posição {failed_position}: {error_text}")
-                            else:
-                                st.error(f"Não consegui gerar o PDF consolidado: {error_text}")
+                            st.session_state["preview_pdf_name"] = f'indicacoes_completas_rodada_{target_round}.pdf'
+                            st.success("PDF pronto com: " + ", ".join(pos for pos, _ in rendered) + ".")
+                        except Exception as exc:
+                            st.error(f"Não consegui gerar o PDF consolidado: {str(exc).strip() or repr(exc)}")
         if st.button("Gerar pacote com todos os PNGs", use_container_width=True, type="secondary"):
             positions_with_cards = [
                 pos for pos in POSITION_CONFIG
@@ -928,52 +955,30 @@ with tab_preview:
                 st.error("Não há jogadores adicionados para gerar o pacote.")
             else:
                 png_files: list[tuple[str, bytes]] = []
-                failed_position = None
-                last_error = None
                 with st.spinner("Gerando um PNG por posição e montando o ZIP..."):
-                    for pos in positions_with_cards:
-                        cards = build_cards_for_position(analyzer, pos, target_round, window_n, filter_mode)
-                        html = build_position_preview_html(pos, target_round, window_n, filter_mode, cards)
-                        png_bytes = None
-                        for scale in [4, 3, 2]:
-                            try:
-                                png_bytes = export_html_to_png_bytes(html, scale=scale)
-                                break
-                            except Exception as exc:
-                                last_error = exc
-                        if not png_bytes:
-                            failed_position = pos
-                            break
-                        png_files.append((f"indicacoes_{pos.lower()}_rodada_{target_round}.png", png_bytes))
-                    if not failed_position:
+                    try:
+                        rendered = render_position_pngs(positions_with_cards, 4)
+                        describe_exports([item for _, item in rendered], "Posições")
+                        for pos, item in rendered:
+                            png_files.append((f"indicacoes_{pos.lower()}_rodada_{target_round}.png", item.png))
                         summary_projects = []
                         if positions_with_cards:
                             summary_projects.append(("tcc", "TCC"))
                         if has_md3_cards:
                             summary_projects.append(("md3", "MD3"))
-                        for project, label in summary_projects:
-                            summary_html = build_summary_html(
-                                project, target_round, players_by_position(project)
-                            )
-                            summary_png = None
-                            for scale in [3, 2]:
-                                try:
-                                    summary_png = export_html_to_png_bytes(summary_html, scale=scale)
-                                    break
-                                except Exception as exc:
-                                    last_error = exc
-                            if not summary_png:
-                                failed_position = f"Resumo {label}"
-                                break
-                            png_files.append(
-                                (f"dicas_resumo_{project}_rodada_{target_round}.png", summary_png)
-                            )
-                if failed_position:
-                    st.error(f"Falha ao gerar {failed_position}: {last_error}")
-                else:
-                    st.session_state["all_pngs_zip_bytes"] = combine_files_to_zip_bytes(png_files)
-                    st.session_state["all_pngs_zip_name"] = f"indicacoes_png_rodada_{target_round}.zip"
-                    st.success(f"Pacote pronto com {len(png_files)} PNG(s).")
+                        summary_htmls = [
+                            build_summary_html(project, target_round, players_by_position(project))
+                            for project, _ in summary_projects
+                        ]
+                        summary_items = export_htmls_to_png(summary_htmls, 3)
+                        describe_exports(summary_items, "Resumos")
+                        for (project, _), item in zip(summary_projects, summary_items):
+                            png_files.append((f"dicas_resumo_{project}_rodada_{target_round}.png", item.png))
+                        st.session_state["all_pngs_zip_bytes"] = combine_files_to_zip_bytes(png_files)
+                        st.session_state["all_pngs_zip_name"] = f"indicacoes_png_rodada_{target_round}.zip"
+                        st.success(f"Pacote pronto com {len(png_files)} PNG(s).")
+                    except Exception as exc:
+                        st.error(f"Falha ao gerar o pacote: {str(exc).strip() or repr(exc)}")
         if st.session_state.get("all_pngs_zip_bytes"):
             st.download_button(
                 "Baixar todos os PNGs (.zip)",

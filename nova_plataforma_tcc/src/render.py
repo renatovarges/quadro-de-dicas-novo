@@ -1,4 +1,5 @@
 from .config import BACKGROUND_FILE, FONT_BLACK_FILE, FONT_BOLD_FILE, FONT_MEDIUM_FILE, FONT_REGULAR_FILE, MAIN_LOGO_FILE
+from .photos import photo_data_uri, prefetch_photos
 from .utils import file_to_base64
 
 
@@ -20,9 +21,10 @@ SCOUT_FULL_LABELS = {
 
 def render_card(card: dict) -> str:
     star_html = '<div class="star-badge">★</div>' if card["badges"]["unanimidade"] else ""
+    photo_src = photo_data_uri(card["photo_url"]) if card["photo_url"] else ""
     photo_html = (
-        f'<img class="player-photo" src="{card["photo_url"]}" alt="{card["name"]}">'
-        if card["photo_url"]
+        f'<img class="player-photo" src="{photo_src}" alt="{card["name"]}">'
+        if photo_src
         else '<div class="player-photo placeholder">SEM FOTO</div>'
     )
     team_logo_html = (
@@ -105,6 +107,7 @@ def build_preview_html(
     cards: list[dict],
     include_client_export: bool = False,
 ) -> str:
+    prefetch_photos([card.get("photo_url", "") for card in cards])
     bg_b64 = file_to_base64(BACKGROUND_FILE)
     logo_b64 = file_to_base64(MAIN_LOGO_FILE)
     font_regular_b64 = file_to_base64(FONT_REGULAR_FILE)

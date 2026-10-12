@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from .config import POSITION_CONFIG
+from .config import DEAD_PHOTO_PREFIXES, PHOTO_OVERRIDES_FILE, POSITION_CONFIG
 from .utils import normalize_text, resolve_team_name
 
 
@@ -244,16 +244,26 @@ def load_excel_data(file_path: Path) -> dict[str, pd.DataFrame]:
 
 
 def build_photo_index(file_path: Path) -> dict[str, dict[str, str]]:
+    """Índice time -> nome -> foto. Fotos manuais/baixadas (photo_overrides.json) têm prioridade
+    e links de hospedagens desativadas são ignorados (o jogador fica 'sem foto' em vez de imagem quebrada)."""
+    photo_index: dict[str, dict[str, str]] = {}
     html = file_path.read_text(encoding="utf-8")
     match = re.search(r"const CLUBES = (\{.*?\});\s*const TODOS", html, re.S)
-    if not match:
-        return {}
-    data = json.loads(match.group(1))
-    photo_index: dict[str, dict[str, str]] = {}
-    for team, players in data.items():
-        photo_index[normalize_text(resolve_team_name(team))] = {
-            normalize_text(name): url for name, url in players.items()
-        }
+    if match:
+        data = json.loads(match.group(1))
+        for team, players in data.items():
+            photo_index[normalize_text(resolve_team_name(team))] = {
+                normalize_text(name): url
+                for name, url in players.items()
+                if not url.startswith(DEAD_PHOTO_PREFIXES)
+            }
+
+    if PHOTO_OVERRIDES_FILE.exists():
+        overrides = json.loads(PHOTO_OVERRIDES_FILE.read_text(encoding="utf-8"))
+        for team, players in overrides.items():
+            team_index = photo_index.setdefault(normalize_text(resolve_team_name(team)), {})
+            for name, url in players.items():
+                team_index[normalize_text(name)] = url
     return photo_index
 
 
