@@ -292,6 +292,7 @@ def build_position_preview_html(
         filter_mode=filter_mode,
         cards=cards,
         include_client_export=False,
+        show_phrase=st.session_state.get("show_phrase", True),
     )
 
 
@@ -450,6 +451,13 @@ with st.sidebar:
     window_n = st.slider("Janela de jogos", min_value=1, max_value=10, value=3)
     filter_mode_label = st.radio("Filtro de mando", ["Por mando", "Todos"], index=0)
     filter_mode = "POR_MANDO" if filter_mode_label == "Por mando" else "TODOS"
+    if BRAND.card_layout == "guardiola":
+        st.checkbox(
+            "Frase automática no retângulo dourado",
+            value=True,
+            key="show_phrase",
+            help="Desligue para deixar o retângulo dourado vazio (para escrever à mão).",
+        )
 
     st.divider()
     st.subheader("Fontes")

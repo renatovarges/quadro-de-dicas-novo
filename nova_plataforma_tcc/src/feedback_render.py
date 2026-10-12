@@ -8,7 +8,7 @@ from .brand import BRAND
 from .config import BACKGROUND_FILE, FONT_BLACK_FILE, FONT_BOLD_FILE, FONT_MEDIUM_FILE, FONT_REGULAR_FILE, MAIN_LOGO_FILE
 from .feedback import DEFAULT_FORMATION, FORMATIONS, POSITION_ORDER
 from .photos import photo_data_uri, prefetch_photos
-from .utils import abbreviate_player_name, display_profile_label, file_to_base64, team_badge_path
+from .utils import normalize_text, abbreviate_player_name, display_profile_label, file_to_base64, team_badge_path
 
 PhotoResolver = Callable[[str, str, str], str]
 
@@ -205,7 +205,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     mine_bonus = f' <small>(inclui {fmt(mine["captain_bonus"])} do capitão)</small>' if mine.get("captain_bonus") else ""
 
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(SUMMARY_CSS)}</style></head>
-    <body><div class="art wide" id="capture">
+    <body><div class="art wide" id="capture">{_demo_banner(evaluation)}
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title">COMO FORAM MINHAS INDICAÇÕES</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]} - resultado</div></div></header>
       <div class="stats">{stats_html}</div>
@@ -289,16 +289,62 @@ def _result_card(player: dict, resolver: PhotoResolver) -> str:
     )
 
 
-def build_position_panel_html(evaluation: dict, position_key: str, resolver: PhotoResolver) -> str:
+MAX_CARDS_PER_ART = 6   # acima disso a posição é dividida em mais de uma arte (leitura no celular)
+
+
+def position_pages(evaluation: dict, position_key: str, max_cards: int = MAX_CARDS_PER_ART) -> list[list[dict]]:
+    """Divide os jogadores de uma posição em páginas equilibradas (ex.: 11 -> 6 + 5, 12 -> 6 + 6)."""
     players = [p for p in evaluation["players"] if p["position"] == position_key]
     players.sort(key=lambda p: (not p["played"], -(p["points"] or 0)))
+    if not players:
+        return [[]]
+    pages = -(-len(players) // max_cards)
+    size = -(-len(players) // pages)
+    return [players[i * size:(i + 1) * size] for i in range(pages)]
+
+
+def _demo_banner(evaluation: dict) -> str:
+    if not evaluation.get("demo"):
+        return ""
+    return (
+        '<div style="background:#cf3a34;color:#fff;font-weight:900;font-size:26px;text-align:center;'
+        'padding:8px;border-radius:10px;margin-bottom:14px;letter-spacing:1px">'
+        "EXEMPLO PARA CONFERIR O VISUAL — DADOS SIMULADOS — NÃO PUBLICAR</div>"
+    )
+
+
+def build_position_panel_html(
+    evaluation: dict, position_key: str, resolver: PhotoResolver, players: list[dict] | None = None,
+    page: int = 1, pages: int = 1,
+) -> str:
+    if players is None:
+        players = [p for page_players in position_pages(evaluation, position_key) for p in page_players]
     _collect_urls(players, resolver)
     cards = "".join(_result_card(p, resolver) for p in players) or '<div class="empty">Nenhum jogador indicado nesta posição.</div>'
+    suffix = f" ({page}/{pages})" if pages > 1 else ""
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}</style></head>
-    <body><div class="art panel" id="capture">
-      <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title" style="font-size:56px">RESULTADO - {position_key.upper()}</div>
+    <body><div class="art panel" id="capture">{_demo_banner(evaluation)}
+      <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title" style="font-size:56px">RESULTADO - {position_key.upper()}{suffix}</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]}</div></div></header>
       <main>{cards}</main>
       <footer class="legend"><span><i style="background:#138a2f"></i>Confirmou</span><span><i style="background:#cf3a34"></i>Não confirmou</span>
         <span><i style="background:#2a7de1"></i>Estratégia: valeu para quem diferenciou</span><span><i style="background:#ffc61e"></i>Na seleção do Cartola</span></footer>
     </div></body></html>"""
+
+
+def build_all_arts(evaluation: dict, resolver: PhotoResolver) -> list[dict]:
+    """Todas as artes do feedback, na ordem de entrega: resumo + painéis por posição (divididos se necessário)."""
+    arts = [{"label": "Resumo", "slug": "resumo", "html": build_summary_html(evaluation, resolver)}]
+    for position_key in POSITION_ORDER:
+        if not any(p["position"] == position_key for p in evaluation["players"]):
+            continue
+        pages = position_pages(evaluation, position_key)
+        for number, page_players in enumerate(pages, start=1):
+            label = position_key if len(pages) == 1 else f"{position_key} {number}/{len(pages)}"
+            slug = normalize_text(position_key).lower() + (f"_{number}" if len(pages) > 1 else "")
+            arts.append({
+                "label": label,
+                "slug": slug,
+                "html": build_position_panel_html(evaluation, position_key, resolver, page_players, number, len(pages)),
+            })
+    return arts
