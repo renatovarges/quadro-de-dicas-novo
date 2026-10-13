@@ -31,6 +31,11 @@ FORMATIONS = {
 DEFAULT_FORMATION = "4-3-3"
 CAPTAIN_MULTIPLIER = 1.5
 
+# Defensores (goleiro, lateral, zagueiro) são avaliados pela MÉDIA BÁSICA dos últimos 5 jogos:
+# pontuação sem gol, assistência, SG, defesa de pênalti etc. Bateu a própria média básica = foi bem.
+BASIC_POSITIONS = {"Goleiros", "Laterais", "Zagueiros"}
+BASIC_WINDOW = 5
+
 MITOU_POINTS = 10.0          # "mitou" = mais de 10 pontos
 TOP_RANK_FOR_BADGES = 5      # capitão/RL correspondem se ficarem no top N da posição na rodada
 
@@ -190,6 +195,8 @@ def player_baseline(
         "avg_points_last3": avg(season_points[-3:]),
         "avg_points_window": round(float(window["PTS"].mean()), 2) if len(window) else None,
         "avg_basic_season": avg(season_basic),
+        "avg_basic_last5": avg(season_basic[-BASIC_WINDOW:]),
+        "games_basic_last5": len(season_basic[-BASIC_WINDOW:]),
         "ref_scouts": refs,
         "sheet_last_round": sheet_last_round,
         "archive_rounds_used": [r for r, _, _ in extra],
@@ -200,6 +207,24 @@ def missing_history_rounds(analyzer, archive: dict[int, dict] | None, target_rou
     """Rodadas entre o fim da planilha e a rodada-alvo que não estão arquivadas (médias ficariam defasadas)."""
     sheet_last_round = int(analyzer.df_games["RODADA"].max())
     return [r for r in range(sheet_last_round + 1, target_round) if r not in (archive or {})]
+
+
+def enrich_snapshot(analyzer, snapshot: dict, archive: dict[int, dict] | None = None) -> dict:
+    """Completa registros salvos antes de existir a média básica dos últimos 5 jogos.
+
+    Recalcula só os campos que faltam, com os dados disponíveis até a rodada-alvo; os valores já congelados são mantidos.
+    """
+    enriched = {**snapshot, "players": [dict(p) for p in snapshot["players"]]}
+    for entry in enriched["players"]:
+        old = entry.get("baseline") or {}
+        if "avg_basic_last5" in old:
+            continue
+        fresh = player_baseline(
+            analyzer, entry, entry["position"], enriched["round"],
+            enriched.get("window_n", 3), enriched.get("filter_mode", "POR_MANDO"), archive,
+        )
+        entry["baseline"] = {**fresh, **old}
+    return enriched
 
 
 def build_snapshot(
@@ -267,9 +292,21 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
     last3_avg = baseline.get("avg_points_last3")
     checks = evaluated["checks"]
 
+    # defensores: o critério é a média básica dos últimos 5 jogos (e não os pontos totais)
+    basic_now = result.get("basic")
+    basic_avg = baseline.get("avg_basic_last5")
+    basic_games = baseline.get("games_basic_last5") or 0
+    uses_basic = position_key in BASIC_POSITIONS and basic_avg is not None and basic_now is not None
+    basic_beat = uses_basic and basic_now >= basic_avg
+    games_text = f"últimos {basic_games} jogos" if basic_games != 1 else "último jogo"
+    basic_detail = f"básica {_fmt(basic_now)} x média básica dos {games_text}: {_fmt(basic_avg)}" if uses_basic else ""
+    evaluated.update(uses_basic=uses_basic, basic_avg=basic_avg, basic_games=basic_games, basic_beat=bool(basic_beat))
+
     # camada geral
     if points > MITOU_POINTS:
         evaluated["tier"] = "mitou"
+    elif uses_basic:
+        evaluated["tier"] = "bom" if basic_beat else "abaixo"
     elif season_avg is not None and points >= season_avg:
         evaluated["tier"] = "bom"
     elif season_avg is None and points > 0:
@@ -281,7 +318,9 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
     if badges.get("unanimidade") or entry.get("confidence") == "A":
         label = "Unanimidade" if badges.get("unanimidade") else "Confiança A"
         if points > MITOU_POINTS:
-            checks.append(_check("unanimidade", label, "ok", f"MITOU com {_fmt(points)} pts"))
+            checks.append(_check("unanimidade", label, "ok", f"MITOU com {_fmt(points)} pts" + (f" | {basic_detail}" if uses_basic else "")))
+        elif uses_basic:
+            checks.append(_check("unanimidade", label, "ok" if basic_beat else "fail", basic_detail))
         elif season_avg is None:
             checks.append(_check("unanimidade", label, "na", f"{_fmt(points)} pts (sem histórico)"))
         elif points >= season_avg:
@@ -294,7 +333,9 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
         sg = scout_value(scout, "SG") > 0
         checks.append(_check("sg", "SG", "ok" if sg else "fail", "time não tomou gol" if sg else "time sofreu gol"))
     if "BOA FASE" in profiles:
-        if last3_avg is None:
+        if uses_basic:
+            checks.append(_check("boa_fase", "Boa fase", "ok" if basic_beat else "fail", basic_detail))
+        elif last3_avg is None:
             checks.append(_check("boa_fase", "Boa fase", "na", "sem histórico"))
         else:
             ok = points >= last3_avg
@@ -318,7 +359,7 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
             else:
                 checks.append(_check(profile.lower(), label, "ok" if met >= math.ceil(total / 2) else "fail", "; ".join(parts)))
     if "ESTRATEGICO" in profiles:
-        if season_avg is None or points >= season_avg:
+        if (uses_basic and basic_beat) or (not uses_basic and (season_avg is None or points >= season_avg)):
             checks.append(_check("estrategico", "Estratégia", "ok", "valeu para quem escalou"))
         else:
             checks.append(_check("estrategico", "Estratégia", "info", "valeu para quem diferenciou"))
@@ -473,7 +514,7 @@ def summarize(evaluated: list[dict]) -> dict:
         "played": len(played),
         "did_not_play": len(evaluated) - len(played),
         "mitou": [p for p in played if p["tier"] == "mitou"],
-        "above_average": sum(1 for p in played if p["tier"] in ("bom", "mitou")),
+        "above_average": sum(1 for p in played if (p["basic_beat"] if p.get("uses_basic") else p["tier"] in ("bom", "mitou"))),
         "checks_ok": ok,
         "checks_total": len(graded),
         "check_rate": round(100 * ok / len(graded)) if graded else 0,

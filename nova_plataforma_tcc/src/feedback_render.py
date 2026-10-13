@@ -6,7 +6,7 @@ from typing import Callable
 
 from .brand import BRAND
 from .config import BACKGROUND_FILE, FONT_BLACK_FILE, FONT_BOLD_FILE, FONT_MEDIUM_FILE, FONT_REGULAR_FILE, MAIN_LOGO_FILE
-from .feedback import DEFAULT_FORMATION, FORMATIONS, POSITION_ORDER
+from .feedback import BASIC_POSITIONS, DEFAULT_FORMATION, FORMATIONS, POSITION_ORDER
 from .photos import photo_data_uri, prefetch_photos
 from .utils import normalize_text, abbreviate_player_name, display_profile_label, file_to_base64, team_badge_path
 
@@ -438,6 +438,7 @@ PANEL_CSS = """
     .res .tier { margin-top: 5px; color: #fff; font-size: 13px; font-weight: 900; border-radius: 7px; padding: 2px 4px; text-transform: uppercase; }
     .fcard.dnp { opacity: .72; }
     .fcard .sel { position: absolute; top: -12px; right: 18px; background: #ffc61e; color: #241108; font-weight: 900; font-size: 13px; padding: 3px 10px; border-radius: 9px; text-transform: uppercase; }
+    .note { margin: 4px 6px 12px; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,.55); color: #17210b; font-size: 17px; font-weight: 700; text-align: center; }
     .empty { background: rgba(255,255,255,.85); border-radius: 16px; padding: 30px; text-align: center; font-size: 24px; font-weight: 700; }
 """
 
@@ -449,7 +450,7 @@ def _result_card(player: dict, resolver: PhotoResolver) -> str:
     badges = player.get("badges", {})
     chips = [f'<span class="chip conf">CONF. {player["confidence"]}</span>']
     if badges.get("unanimidade"):
-        chips.append('<span class="chip star">★ Unanimidade</span>')
+        chips.append(f'<span class="chip star">{"✓" if BRAND.key == "guardiola" else "★"} Unanimidade</span>')
     if badges.get("bom_capitao"):
         chips.append('<span class="chip cap">C Capitão</span>')
     if badges.get("bom_rl"):
@@ -462,11 +463,24 @@ def _result_card(player: dict, resolver: PhotoResolver) -> str:
             for c in player["checks"]
         ) or '<div class="ck na"><b>?</b><div>Sem critério marcado</div></div>'
         base = player["baseline"].get("avg_points_season")
-        res = (
-            f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>'
-            f'<div class="sub">média {fmt(base)} | básica {fmt(player["basic"])}</div>'
-            + (f'<div class="sub" style="font-weight:500">{player["rank_position"]}º da posição na rodada</div>' if player.get("rank_position") else "")
+        rank_line = (
+            f'<div class="sub" style="font-weight:500">{player["rank_position"]}º da posição na rodada</div>'
+            if player.get("rank_position") else ""
         )
+        if player.get("uses_basic"):
+            games = player.get("basic_games") or 5
+            res = (
+                f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>'
+                f'<div class="sub">básica {fmt(player["basic"])}</div>'
+                f'<div class="sub" style="font-weight:600">média básica ({games}J): {fmt(player["basic_avg"])}</div>'
+                + rank_line
+            )
+        else:
+            res = (
+                f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>'
+                f'<div class="sub">média {fmt(base)} | básica {fmt(player["basic"])}</div>'
+                + rank_line
+            )
     else:
         checks = '<div class="ck na"><b>–</b><div>Não entrou em campo<small>fora das contas</small></div></div>'
         res = '<div class="lbl">Pontos</div><div class="big" style="color:#8a8a8a">-</div>'
@@ -514,11 +528,17 @@ def build_position_panel_html(
     _collect_urls(players, resolver)
     cards = "".join(_result_card(p, resolver) for p in players) or '<div class="empty">Nenhum jogador indicado nesta posição.</div>'
     suffix = f" ({page}/{pages})" if pages > 1 else ""
+    defender_note = (
+        '<div class="note">Critério dos defensores: média básica dos últimos 5 jogos (pontuação sem gols, assistências, '
+        'SG e defesa de pênalti). Bateu a própria média básica = foi bem.</div>'
+        if position_key in BASIC_POSITIONS else ""
+    )
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}{_brand_css()}</style></head>
     <body><div class="art panel" id="capture">{_demo_banner(evaluation)}
       <header class="hero">{_logo()}<div class="hero-copy"><div class="hero-title" style="font-size:56px">RESULTADO - {position_key.upper()}{suffix}</div>
         <div class="hero-subtitle">Rodada {evaluation["round"]}</div></div></header>
       <main>{cards}</main>
+      {defender_note}
       <footer class="legend"><span><i style="background:#138a2f"></i>Confirmou</span><span><i style="background:#cf3a34"></i>Não confirmou</span>
         <span><i style="background:#2a7de1"></i>Estratégia: valeu para quem diferenciou</span><span><i style="background:#ffc61e"></i>Na seleção do Cartola</span></footer>
     </div></body></html>"""

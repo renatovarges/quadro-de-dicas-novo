@@ -11,6 +11,7 @@ from .exporter import combine_files_to_zip_bytes, combine_pngs_to_pdf_bytes, exp
 from .feedback import (
     POSITION_ORDER,
     build_snapshot,
+    enrich_snapshot,
     evaluate_snapshot,
     fetch_market_status,
     fetch_round_results,
@@ -294,6 +295,9 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
                         else:
                             st.error(f"Não encontrei a pontuação da rodada {chosen_round}. Tente de novo em alguns minutos.")
                 if results:
+                    sheet_last = int(analyzer.df_games["RODADA"].max())
+                    archive = load_archive(PROJECT, list(range(sheet_last + 1, snapshot["round"])), remote_config)
+                    snapshot = enrich_snapshot(analyzer, snapshot, archive)
                     st.session_state["fb_eval"] = evaluate_snapshot(
                         snapshot, results, _most_escalated(chosen_round, remote_config)
                     )
