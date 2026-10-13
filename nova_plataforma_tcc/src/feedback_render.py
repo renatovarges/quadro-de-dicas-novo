@@ -85,6 +85,13 @@ GUARDIOLA_FEEDBACK_CSS = """
 .fcard .res, .fcard .ck { background: #ffffff !important; }
 .legend { color: #ffffff !important; }
 .rank-row .photo, .fcard .photo { border-color: #000000 !important; }
+.una { background: #00c853 !important; color: #ffffff !important; }
+.una-count { background: #00c853 !important; color: #ffffff !important; }
+.una-box { border-color: #00c853 !important; box-shadow: 0 0 0 4px rgba(0,200,83,.5) !important; }
+.una-item { background: rgba(0,0,0,.08) !important; }
+.t-mitou { color: #8a6d00 !important; } .t-bom { color: #138a2f !important; } .t-abaixo { color: #cf3a34 !important; } .t-nao { color: #555 !important; }
+.un-pts { color: #6b5200 !important; }
+.fcard.una-card { box-shadow: 0 0 0 4px #00c853 !important; }
 """
 
 
@@ -169,6 +176,24 @@ SUMMARY_CSS = """
     .rank-row .rp { font-size: 26px; font-weight: 900; }
     .rp.good { color: #7CFC8A; } .rp.bad { color: #ff7a72; } .rp.gold { color: #ffc61e; }
     .fwrap { display: flex; flex-wrap: wrap; gap: 8px; }
+    .una { position: absolute; left: -8px; bottom: -2px; width: 34px; height: 34px; border-radius: 50%; background: #ffc61e; color: #241108; font-weight: 900; font-size: 21px; line-height: 29px; text-align: center; border: 3px solid #fff; z-index: 3; box-shadow: 0 2px 5px rgba(0,0,0,.35); }
+    .una-box { border-color: #ffc61e !important; box-shadow: 0 0 0 4px rgba(255,198,30,.6); }
+    .una-box .team-head { justify-content: flex-start; align-items: center; gap: 16px; }
+    .una-box .team-head h2 { display: flex; align-items: center; gap: 12px; }
+    .una-box .team-head .una { position: static; flex: none; width: 40px; height: 40px; line-height: 34px; font-size: 24px; }
+    .una-count { margin-left: auto; font-size: 22px; font-weight: 900; background: #ffc61e; color: #241108; border-radius: 12px; padding: 4px 14px; }
+    .una-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 18px; padding: 4px 6px 4px; }
+    .una-item { display: grid; grid-template-columns: 78px 1fr auto; gap: 14px; align-items: center; background: rgba(255,255,255,.1); border-radius: 14px; padding: 10px 14px; }
+    .una-item .ph-wrap { position: relative; width: 70px; }
+    .una-item .photo { width: 66px; height: 66px; border-width: 3px; }
+    .una-item .badge { width: 28px; height: 28px; right: -8px; bottom: -4px; padding: 2px; }
+    .un-name { font-size: 22px; font-weight: 900; text-transform: uppercase; line-height: 1.05; }
+    .un-sub { font-size: 15px; font-weight: 600; margin-top: 3px; opacity: .95; }
+    .un-sub b { font-weight: 900; text-transform: uppercase; }
+    .t-mitou { color: #ffc61e; } .t-bom { color: #7CFC8A; } .t-abaixo { color: #ff8a82; } .t-nao { color: #c9c9c9; }
+    .un-pts { font-size: 34px; font-weight: 900; color: #ffc61e; }
+    .fcard.una-card { box-shadow: 0 0 0 4px #ffc61e; }
+    .fcard .ph-wrap .una { left: -10px; bottom: 4px; }
     .esc { margin-top: 3px; font-size: 13px; font-weight: 700; opacity: .95; }
     .strip { min-height: 0 !important; flex-direction: row !important; justify-content: space-evenly; align-items: flex-end; padding: 12px 8px 12px; gap: 6px; }
     .strip .sgroup { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -189,7 +214,12 @@ SUMMARY_CSS = """
 """
 
 
-def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highlight_tag: str = "", extra: str = "") -> str:
+def _una_badge() -> str:
+    symbol = "✓" if BRAND.key == "guardiola" else "★"
+    return f'<div class="una" title="Unanimidade">{symbol}</div>'
+
+
+def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highlight_tag: str = "", extra: str = "", una: bool = False) -> str:
     points = player["points"]
     pts_class = "mitou" if points > 10 else ("neg" if points < 0 else "")
     hit = "hit" if highlight_tag else ""
@@ -197,7 +227,7 @@ def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highli
     tag = f'<div class="tag">{highlight_tag}</div>' if highlight_tag else ""
     return (
         f'<div class="pl {hit}">{cap}{tag}'
-        f'<div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
+        f'<div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}{_una_badge() if una else ""}</div>'
         f'<div class="nm">{escape(abbreviate_player_name(player["name"], 14))}</div>'
         f'<div class="pts {pts_class}">{fmt(points)}</div>'
         + (f'<div class="esc">{extra}</div>' if extra else "")
@@ -205,7 +235,7 @@ def _pitch_player(player: dict, resolver: PhotoResolver, captain_id=None, highli
     )
 
 
-def _pitch(team: dict, resolver: PhotoResolver, captain_id=None, mark_ids: set | None = None, tag: str = "", show_count: bool = False) -> str:
+def _pitch(team: dict, resolver: PhotoResolver, captain_id=None, mark_ids: set | None = None, tag: str = "", show_count: bool = False, una_ids: set | None = None) -> str:
     by_pos = {key: [p for p in team["players"] if p["position"] == key] for key in POSITION_ORDER}
     lat, zag = by_pos["Laterais"], by_pos["Zagueiros"]
     if len(lat) == 2:
@@ -219,6 +249,7 @@ def _pitch(team: dict, resolver: PhotoResolver, captain_id=None, mark_ids: set |
             _pitch_player(
                 p, resolver, captain_id, tag if (mark_ids is not None and p["athlete_id"] in mark_ids) else "",
                 f'{p["count"]:,} escalações'.replace(",", ".") if show_count and p.get("count") else "",
+                bool(una_ids) and p["athlete_id"] in una_ids,
             )
             for p in row
         )
@@ -286,6 +317,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
             )
         return "".join(rows) or '<div style="opacity:.8">-</div>'
 
+    una_ids = {p["athlete_id"] for p in evaluation["players"] if p.get("badges", {}).get("unanimidade")}
     scoreboard = [("Minha seleção", mine["total"], "mine")]
     if escalated:
         scoreboard.append(("Mais escalados", escalated["total"], "esc"))
@@ -296,6 +328,33 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
         f'style="width:{max(2, 100 * total / top_total):.0f}%"></div></div><span class="bar-val">{fmt(total)}</span></div>'
         for label, total, css in scoreboard
     )
+    una_players = sorted(
+        (p for p in evaluation["players"] if p.get("badges", {}).get("unanimidade")),
+        key=lambda p: (not p["played"], -(p["points"] or 0)),
+    )
+    una_section = ""
+    if una_players:
+        tier_class = {"mitou": "t-mitou", "bom": "t-bom", "abaixo": "t-abaixo", "nao_jogou": "t-nao"}
+        una_items = []
+        for player in una_players:
+            _color, tier_label = TIER_STYLE[player["tier"]]
+            points_html = fmt(player["points"]) if player["played"] else "-"
+            una_items.append(
+                f'<div class="una-item"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
+                f'<div class="un-info"><div class="un-name">{escape(abbreviate_player_name(player["name"], 16))}</div>'
+                f'<div class="un-sub">{escape(player["position"][:-1] if player["position"].endswith("s") else player["position"])} · '
+                f'<b class="{tier_class[player["tier"]]}">{tier_label}</b></div></div>'
+                f'<div class="un-pts">{points_html}</div></div>'
+            )
+        played_una = [p for p in una_players if p["played"]]
+        ok_una = sum(
+            1 for p in played_una if any(c["key"] == "unanimidade" and c["status"] == "ok" for c in p["checks"])
+        )
+        correspondeu = f"{ok_una} de {len(played_una)} corresponderam" if played_una else "nenhuma jogou"
+        una_section = (
+            f'<div class="team-box una-box"><div class="team-head"><h2>{_una_badge()} Unanimidades</h2>'
+            f'<span class="una-count">{correspondeu}</span></div><div class="una-grid">{"".join(una_items)}</div></div>'
+        )
     best_rows = _rank_rows(summary["best"], "gold")
     worst_rows = _rank_rows(summary["worst"], "bad") if summary["worst"] else ""
     worst_box = f'<div class="side-box"><h3>Piores indicações</h3>{worst_rows}</div>' if worst_rows else ""
@@ -313,6 +372,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
             + "</span>"
         )
     forms_bar_html = f'<div class="forms"><h3>Outras formações</h3>{"".join(chips)}<span style="font-weight:700">{forms_note}</span></div>'
+    una_section_html = f'<div style="margin-top:22px">{una_section}</div>' if una_section else ""
     if escalated:
         escalated_ids = {p["athlete_id"] for p in escalated["players"]}
         if escalated.get("captain_id") is not None:
@@ -321,22 +381,23 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
             escalated_cap_text = "(sem capitão)"
         teams_html = f"""<div class="teams">
         <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
-          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção")}</div>
+          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção", una_ids=una_ids)}</div>
         <div class="team-box"><div class="team-head"><h2>Mais escalados</h2><div class="tot">{fmt(escalated["total"])} pts <small>{escalated_cap_text}</small></div></div>
-          {_pitch(escalated, resolver, escalated.get("captain_id"), my_ids, "indicado", show_count=True)}</div>
+          {_pitch(escalated, resolver, escalated.get("captain_id"), my_ids, "indicado", show_count=True, una_ids=una_ids)}</div>
       </div>
+      {una_section_html}
       <div class="teams" style="margin-top:22px">
         <div class="team-box"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
-          {_pitch(cartola, resolver, None, my_ids, "indicado")}</div>
+          {_pitch(cartola, resolver, None, my_ids, "indicado", una_ids=una_ids)}</div>
         {side_html}
       </div>"""
     else:
         teams_html = f"""<div class="teams">
         <div class="team-box"><div class="team-head"><h2>Minha seleção ({mine["formation"]})</h2><div class="tot">{fmt(mine["total"])} pts{mine_bonus}</div></div>
-          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção")}</div>
+          {_pitch(mine, resolver, mine.get("captain_id"), cartola_ids, "na seleção", una_ids=una_ids)}</div>
         <div class="team-box"><div class="team-head"><h2>Seleção da rodada do Cartola</h2><div class="tot">{fmt(cartola["total"])} pts</div></div>
-          {_pitch(cartola, resolver, None, my_ids, "indicado")}</div>
-      </div>"""
+          {_pitch(cartola, resolver, None, my_ids, "indicado", una_ids=una_ids)}</div>
+      </div>{una_section_html}"""
 
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(SUMMARY_CSS)}{_brand_css()}</style></head>
     <body><div class="art wide" id="capture">{_demo_banner(evaluation)}
@@ -354,6 +415,8 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
 
 PANEL_CSS = """
     .art.panel { width: 1080px; }
+    .una { position: absolute; left: -10px; bottom: 4px; width: 34px; height: 34px; border-radius: 50%; background: #ffc61e; color: #241108; font-weight: 900; font-size: 21px; line-height: 29px; text-align: center; border: 3px solid #fff; z-index: 3; box-shadow: 0 2px 5px rgba(0,0,0,.35); }
+    .fcard.una-card { box-shadow: 0 0 0 4px #ffc61e; }
     .fcard { display: grid; grid-template-columns: 150px 1fr 170px; gap: 14px; align-items: center; background: __CARD__; border: 3px solid #f5f5f0; border-radius: 18px; color: #fff; padding: 12px 16px 12px 12px; margin-bottom: 14px; position: relative; }
     .fcard .who { text-align: center; }
     .fcard .ph-wrap { position: relative; width: 100px; margin: 0 auto; }
@@ -410,8 +473,8 @@ def _result_card(player: dict, resolver: PhotoResolver) -> str:
 
     sel = '<div class="sel">★ Na seleção da rodada</div>' if player.get("in_cartola_team") else ""
     return (
-        f'<section class="fcard {"" if player["played"] else "dnp"}">{sel}'
-        f'<div class="who"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
+        f'<section class="fcard {"" if player["played"] else "dnp"} {"una-card" if badges.get("unanimidade") else ""}">{sel}'
+        f'<div class="who"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}{_una_badge() if badges.get("unanimidade") else ""}</div>'
         f'<div class="nm">{escape(abbreviate_player_name(player["name"], 13))}</div></div>'
         f'<div class="mid"><div class="chips">{"".join(chips)}</div><div class="chk">{checks}</div></div>'
         f'<div class="res">{res}<div class="tier" style="background:{tier_color}">{tier_label}</div></div></section>'
@@ -424,7 +487,7 @@ MAX_CARDS_PER_ART = 6   # acima disso a posição é dividida em mais de uma art
 def position_pages(evaluation: dict, position_key: str, max_cards: int = MAX_CARDS_PER_ART) -> list[list[dict]]:
     """Divide os jogadores de uma posição em páginas equilibradas (ex.: 11 -> 6 + 5, 12 -> 6 + 6)."""
     players = [p for p in evaluation["players"] if p["position"] == position_key]
-    players.sort(key=lambda p: (not p["played"], -(p["points"] or 0)))
+    players.sort(key=lambda p: (not p["played"], not p.get("badges", {}).get("unanimidade"), -(p["points"] or 0)))
     if not players:
         return [[]]
     pages = -(-len(players) // max_cards)
