@@ -72,7 +72,7 @@ def _show_evaluation(analyzer, evaluation: dict) -> None:
         )
     st.success(
         f"Rodada {evaluation['round']}: {s['played']} de {s['indicated']} indicados jogaram, "
-        f"{s['above_average']} acima da média, {len(s['mitou'])} mitaram, "
+        f"{s['above_average']} com boa pontuação, {len(s['mitou'])} mitaram, "
         f"aproveitamento de {s['check_rate']}% nos critérios. Total de {len(arts)} arte(s)."
     )
     if not evaluation.get("most_escalated"):
