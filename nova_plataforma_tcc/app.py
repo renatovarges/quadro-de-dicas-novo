@@ -103,9 +103,15 @@ def get_photo_index():
     return build_photo_index(PHOTOS_FILE)
 
 
+def code_version() -> str:
+    """Muda a cada atualização do código: evita que o cache guarde um analisador de uma versão antiga."""
+    files = list((ROOT_DIR / "src").glob("*.py")) + [ROOT_DIR / "app.py"]
+    return "|".join(f"{f.name}:{int(f.stat().st_mtime)}:{f.stat().st_size}" for f in sorted(files))
+
+
 @st.cache_resource(show_spinner="Carregando planilha de scouts...")
-def get_analyzer(file_bytes: bytes | None, uploaded_name: str | None) -> ScoutAnalyzer:
-    """Planilha + analisador ficam em memória e não são recriados a cada clique."""
+def get_analyzer(file_bytes: bytes | None, uploaded_name: str | None, version: str = "") -> ScoutAnalyzer:
+    """Planilha + analisador ficam em memória e não são recriados a cada clique (nem após atualizar o código)."""
     if file_bytes and uploaded_name:
         temp_dir = ROOT_DIR / ".tmp"
         temp_dir.mkdir(exist_ok=True)
@@ -607,6 +613,7 @@ with st.sidebar:
 analyzer = get_analyzer(
     uploaded_excel.getvalue() if uploaded_excel else None,
     uploaded_excel.name if uploaded_excel else None,
+    code_version(),
 )
 indications_csv_bytes = build_indications_csv_bytes(target_round)
 
