@@ -64,6 +64,7 @@ def _base_css() -> str:
 def _themed(css: str) -> str:
     return (
         css.replace("__CARD__", BRAND.art_card)
+        .replace("__PITCH__", BRAND.pitch_color)
         .replace("__ACCENT__", BRAND.art_accent)
         .replace("__ACCENTTEXT__", "#0f5d00" if BRAND.key == "tcc" else "#7a5c00")
     )
@@ -146,7 +147,7 @@ SUMMARY_CSS = """
     .team-head .tot { font-size: 36px; font-weight: 900; color: __ACCENT__; }
     .team-head .tot small { font-size: 15px; color: #fff; font-weight: 700; }
     .pitch { position: relative; background:
-        repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 70px, rgba(255,255,255,0) 70px 140px), #167a1c;
+        repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 70px, rgba(255,255,255,0) 70px 140px), __PITCH__;
         border: 3px solid rgba(255,255,255,.8); border-radius: 14px; padding: 14px 10px 10px; display: flex; flex-direction: column; gap: 10px; min-height: 800px; justify-content: space-between; }
     .line { display: flex; justify-content: space-evenly; align-items: flex-start; }
     .pl { position: relative; width: 190px; text-align: center; }

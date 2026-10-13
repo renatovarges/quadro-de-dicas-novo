@@ -22,6 +22,7 @@ class Brand:
     art_card: str            # fundo dos cards/caixas
     art_text: str            # cor do texto sobre o fundo da arte
     art_accent: str          # destaque (bordas, selos)
+    pitch_color: str         # cor do gramado dos campinhos
     hero_note: str = ""
 
 
@@ -39,6 +40,7 @@ BRANDS = {
         art_card="#0f5d00",
         art_text="#0f5d00",
         art_accent="#ffc61e",
+        pitch_color="#073d17",
     ),
     "guardiola": Brand(
         key="guardiola",
@@ -53,6 +55,7 @@ BRANDS = {
         art_card="#000000",
         art_text="#000000",
         art_accent="#D4AF37",
+        pitch_color="#167a1c",
         hero_note="Exclusivo · VIP Guardiola",
     ),
 }
