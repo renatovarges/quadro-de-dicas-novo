@@ -17,6 +17,7 @@ from .feedback import (
     fetch_round_results,
     missing_history_rounds,
 )
+from .caption import build_caption
 from .feedback_render import build_all_arts
 from .indications_import import parse_indications_csv
 from .indications_store import (
@@ -84,6 +85,19 @@ def _show_evaluation(analyzer, evaluation: dict) -> None:
     for tab, art in zip(tabs, arts):
         with tab:
             st.components.v1.html(art["html"], height=1100, scrolling=True)
+
+    st.markdown("### Legenda para o Telegram")
+    caption = build_caption(evaluation)
+    st.caption(
+        "Pronta para colar no Telegram: o **negrito** e o __itálico__ são formatados sozinhos quando você cola na caixa de "
+        "mensagem. Use o ícone de copiar no canto do quadro."
+        + (" (Exemplo: números simulados, não publique.)" if demo else "")
+    )
+    st.code(caption, language=None)
+    st.download_button(
+        "Baixar a legenda (.txt)", data=caption.encode("utf-8"),
+        file_name=f"legenda_telegram_rodada_{evaluation['round']}.txt", mime="text/plain", use_container_width=True,
+    )
 
     if demo:
         return
