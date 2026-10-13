@@ -62,7 +62,7 @@ def _format_saved_at(snapshot: dict) -> str:
 def _show_evaluation(analyzer, evaluation: dict) -> None:
     """Prévia das artes + downloads (PNG, PDF e ZIP)."""
     demo = bool(evaluation.get("demo"))
-    arts = build_all_arts(evaluation, analyzer.get_photo_url)
+    arts = build_all_arts(evaluation, analyzer.get_player_photo)
     s = evaluation["summary"]
     if demo:
         st.warning(

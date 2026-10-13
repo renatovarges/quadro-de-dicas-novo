@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from .config import POSITION_CONFIG, PROFILE_COLORS
+from .config import PHOTOS_BY_ID_DIR, POSITION_CONFIG, PROFILE_COLORS
 from .phrases import build_phrase
 from .utils import (
     display_profile_label,
@@ -91,10 +91,11 @@ class ScoutAnalyzer:
                 {"label": display_profile_label(profile), "color": PROFILE_COLORS.get(profile, "#59d9f8")}
                 for profile in player["profiles"]
             ],
-            "photo_url": self.get_photo_url(
+            "photo_url": self.get_player_photo(
                 resolved_team,
                 player["name"],
                 player.get("full_name", ""),
+                player.get("athlete_id"),
             ),
             "team_logo_b64": file_to_base64(team_badge_path(resolved_team)),
             "metrics": self.build_metrics(position_key, own_stats, opp_stats),
@@ -494,6 +495,17 @@ class ScoutAnalyzer:
             self.build_metric(position_key, "CHT AG", own_stats["shots_on_target"], opp_stats["shots_on_target"]),
             self.build_metric(position_key, "G+A", own_stats["pg"], opp_stats["pg"]),
         ]
+
+    def get_player_photo(self, team_name: str, name: str, full_name: str = "", athlete_id=None) -> str:
+        """Foto do jogador. 1º pelo ID do Cartola (rosto, sem risco de trocar de pessoa); 2º por nome e time."""
+        if athlete_id not in (None, ""):
+            try:
+                candidate = PHOTOS_BY_ID_DIR / f"{int(athlete_id)}.webp"
+            except (TypeError, ValueError):
+                candidate = None
+            if candidate is not None and candidate.exists():
+                return f"assets/jogadores/{int(athlete_id)}.webp"
+        return self.get_photo_url(team_name, name, full_name)
 
     def get_photo_url(self, team_name: str, *candidate_names: str) -> str:
         team_index = self.photo_index.get(normalize_text(resolve_team_name(team_name)), {})

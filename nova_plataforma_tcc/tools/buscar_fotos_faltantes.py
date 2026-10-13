@@ -25,7 +25,7 @@ import requests
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
-from src.config import DEFAULT_EXCEL_FILE, PHOTO_OVERRIDES_FILE, PLAYER_PHOTOS_DIR  # noqa: E402
+from src.config import DEFAULT_EXCEL_FILE, PHOTO_OVERRIDES_FILE, PHOTOS_BY_ID_DIR, PLAYER_PHOTOS_DIR  # noqa: E402
 from src.data_sources import build_photo_index, fetch_market_snapshot, load_excel_data  # noqa: E402
 from src.utils import normalize_text, resolve_team_name  # noqa: E402
 
@@ -182,6 +182,8 @@ def main() -> int:
         )
         if not relevant:
             continue
+        if (PHOTOS_BY_ID_DIR / f'{player["atleta_id"]}.webp').exists():
+            continue  # já tem foto por ID (banco principal)
         team_index = photo_index.get(normalize_text(team), {})
         urls = {
             team_index[normalize_text(name)]

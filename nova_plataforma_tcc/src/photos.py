@@ -26,11 +26,18 @@ def _encode(content: bytes) -> str:
         image.load()
         if max(image.size) > MAX_PHOTO_SIDE:
             image.thumbnail((MAX_PHOTO_SIDE, MAX_PHOTO_SIDE), Image.LANCZOS)
+        elif max(image.size) < 300:
+            # fonte de 150 px: amplia com Lanczos e um leve realce, em vez de deixar o navegador esticar o pixel
+            from PIL import ImageFilter
+
+            factor = 400 / max(image.size)
+            image = image.convert("RGBA").resize((round(image.width * factor), round(image.height * factor)), Image.LANCZOS)
+            image = image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=70, threshold=2))
         has_alpha = image.mode in ("RGBA", "LA", "P") and "transparency" in image.info or image.mode in ("RGBA", "LA")
         output = BytesIO()
         if has_alpha:
-            image.convert("RGBA").save(output, format="PNG", optimize=True)
-            mime = "image/png"
+            image.convert("RGBA").save(output, format="WEBP", quality=92, method=4)
+            mime = "image/webp"
         else:
             image.convert("RGB").save(output, format="JPEG", quality=94, subsampling=0)
             mime = "image/jpeg"

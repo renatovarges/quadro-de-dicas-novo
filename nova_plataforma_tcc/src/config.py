@@ -25,6 +25,8 @@ BACKGROUND_FILE = LOGOS_DIR / "background.png"
 MAIN_LOGO_FILE = LOGOS_DIR / BRAND.logo_file
 MAIN_LOGO_WHITE_FILE = LOGOS_DIR / BRAND.logo_white_file
 PLAYER_PHOTOS_DIR = ASSETS_DIR / "players"
+# Banco principal: assets/jogadores/<atleta_id>.webp (rosto, indexado pelo ID oficial do Cartola)
+PHOTOS_BY_ID_DIR = ASSETS_DIR / "jogadores"
 PHOTO_OVERRIDES_FILE = ASSETS_DIR / "photo_overrides.json"
 # Contas de hospedagem que deixaram de existir (Cloudinary respondeu "cloud_name ddrygy9bm is disabled").
 DEAD_PHOTO_PREFIXES = ("https://res.cloudinary.com/ddrygy9bm/",)

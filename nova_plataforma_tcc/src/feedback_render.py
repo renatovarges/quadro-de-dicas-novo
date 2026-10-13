@@ -10,7 +10,7 @@ from .feedback import DEFAULT_FORMATION, FORMATIONS, POSITION_ORDER
 from .photos import photo_data_uri, prefetch_photos
 from .utils import normalize_text, abbreviate_player_name, display_profile_label, file_to_base64, team_badge_path
 
-PhotoResolver = Callable[[str, str, str], str]
+PhotoResolver = Callable[..., str]
 
 GREEN, RED, GOLD, GRAY = "#138a2f", "#cf3a34", "#e0a100", "#8a8a8a"
 TIER_STYLE = {
@@ -105,7 +105,7 @@ def _logo() -> str:
 
 
 def _photo(player: dict, resolver: PhotoResolver, size_class: str = "") -> str:
-    url = resolver(player["team"], player["name"], player.get("full_name", ""))
+    url = resolver(player["team"], player["name"], player.get("full_name", ""), player.get("athlete_id"))
     src = photo_data_uri(url) if url else ""
     if src:
         return f'<img class="photo {size_class}" src="{src}" alt="">'
@@ -119,7 +119,7 @@ def _badge(team: str) -> str:
 
 
 def _collect_urls(players: list[dict], resolver: PhotoResolver) -> None:
-    prefetch_photos([resolver(p["team"], p["name"], p.get("full_name", "")) for p in players])
+    prefetch_photos([resolver(p["team"], p["name"], p.get("full_name", ""), p.get("athlete_id")) for p in players])
 
 
 # ------------------------------------------------------------------ resumo horizontal ---------
