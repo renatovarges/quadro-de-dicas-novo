@@ -35,6 +35,8 @@ CAPTAIN_MULTIPLIER = 1.5
 # pontuação sem gol, assistência, SG, defesa de pênalti etc. Bateu a própria média básica = foi bem.
 BASIC_POSITIONS = {"Goleiros", "Laterais", "Zagueiros"}
 BASIC_WINDOW = 5
+# Além de bater a própria média básica, básica acima deste valor também é positiva (principalmente zagueiros).
+BASIC_ABSOLUTE_GOOD = {"Zagueiros": 3.0}
 
 MITOU_POINTS = 10.0          # "mitou" = mais de 10 pontos
 TOP_RANK_FOR_BADGES = 5      # capitão/RL correspondem se ficarem no top N da posição na rodada
@@ -292,21 +294,57 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
     last3_avg = baseline.get("avg_points_last3")
     checks = evaluated["checks"]
 
-    # defensores: o critério é a média básica dos últimos 5 jogos (e não os pontos totais)
+    # defensores: dois lados. Pontos na média geral (ou acima) é positivo; média básica dos últimos 5 jogos
+    # batida (ou, p/ zagueiro, básica acima de 3 pts) também. Um lado bom já valoriza; os dois é o melhor cenário.
     basic_now = result.get("basic")
     basic_avg = baseline.get("avg_basic_last5")
     basic_games = baseline.get("games_basic_last5") or 0
-    uses_basic = position_key in BASIC_POSITIONS and basic_avg is not None and basic_now is not None
-    basic_beat = uses_basic and basic_now >= basic_avg
+    two_lens = position_key in BASIC_POSITIONS and basic_now is not None
+    uses_basic = two_lens and basic_avg is not None
     games_text = f"últimos {basic_games} jogos" if basic_games != 1 else "último jogo"
-    basic_detail = f"básica {_fmt(basic_now)} x média básica dos {games_text}: {_fmt(basic_avg)}" if uses_basic else ""
-    evaluated.update(uses_basic=uses_basic, basic_avg=basic_avg, basic_games=basic_games, basic_beat=bool(basic_beat))
+    absolute_limit = BASIC_ABSOLUTE_GOOD.get(position_key)
+    pts_good = season_avg is not None and points >= season_avg
+    basic_rel_good = uses_basic and basic_now >= basic_avg
+    basic_abs_good = bool(two_lens and absolute_limit is not None and basic_now > absolute_limit)
+    basic_good = bool(basic_rel_good or basic_abs_good)
+    lens_summary = ""
+    if two_lens:
+        if pts_good and basic_good:
+            lens_summary = "pontos e básica acima da média"
+        elif pts_good:
+            lens_summary = "pontos acima da média (básica abaixo)"
+        elif basic_good:
+            lens_summary = "básica acima da média (pontos abaixo)"
+        else:
+            lens_summary = "pontos e básica abaixo da média"
+        pts_detail = (
+            f"pontos {_fmt(points)} x média de pontos {_fmt(season_avg)}" if season_avg is not None
+            else f"pontos {_fmt(points)} (sem histórico)"
+        )
+        if uses_basic:
+            basic_detail = f"básica {_fmt(basic_now)} x média básica dos {games_text}: {_fmt(basic_avg)}"
+        else:
+            basic_detail = f"básica {_fmt(basic_now)} (sem histórico de média básica)"
+        if basic_abs_good and not basic_rel_good:
+            basic_detail += f" | acima de {_fmt(absolute_limit)} pts de básica"
+        checks.append(_check("fator_pontos", "Média geral (pontos)", "ok" if pts_good else "fail", pts_detail))
+        checks.append(_check("fator_basica", "Média básica", "ok" if basic_good else "fail", basic_detail))
+    evaluated.update(
+        uses_basic=two_lens, basic_avg=basic_avg, basic_games=basic_games, basic_beat=basic_good,
+        pts_good=bool(pts_good), basic_good=basic_good,
+    )
 
     # camada geral
     if points > MITOU_POINTS:
         evaluated["tier"] = "mitou"
-    elif uses_basic:
-        evaluated["tier"] = "bom" if basic_beat else "abaixo"
+    elif two_lens:
+        evaluated["tier"] = "bom" if (pts_good or basic_good) else "abaixo"
+        evaluated["tier_label"] = (
+            "PONTOS E BÁSICA ACIMA" if pts_good and basic_good
+            else "PONTOS ACIMA DA MÉDIA" if pts_good
+            else "BÁSICA ACIMA DA MÉDIA" if basic_good
+            else "ABAIXO DA MÉDIA"
+        )
     elif season_avg is not None and points >= season_avg:
         evaluated["tier"] = "bom"
     elif season_avg is None and points > 0:
@@ -318,9 +356,9 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
     if badges.get("unanimidade") or entry.get("confidence") == "A":
         label = "Unanimidade" if badges.get("unanimidade") else "Confiança A"
         if points > MITOU_POINTS:
-            checks.append(_check("unanimidade", label, "ok", f"MITOU com {_fmt(points)} pts" + (f" | {basic_detail}" if uses_basic else "")))
-        elif uses_basic:
-            checks.append(_check("unanimidade", label, "ok" if basic_beat else "fail", basic_detail))
+            checks.append(_check("unanimidade", label, "ok", f"MITOU com {_fmt(points)} pts" + (f" | {lens_summary}" if two_lens else "")))
+        elif two_lens:
+            checks.append(_check("unanimidade", label, "ok" if (pts_good or basic_good) else "fail", lens_summary))
         elif season_avg is None:
             checks.append(_check("unanimidade", label, "na", f"{_fmt(points)} pts (sem histórico)"))
         elif points >= season_avg:
@@ -333,8 +371,9 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
         sg = scout_value(scout, "SG") > 0
         checks.append(_check("sg", "SG", "ok" if sg else "fail", "time não tomou gol" if sg else "time sofreu gol"))
     if "BOA FASE" in profiles:
-        if uses_basic:
-            checks.append(_check("boa_fase", "Boa fase", "ok" if basic_beat else "fail", basic_detail))
+        if two_lens:
+            recent_ok = pts_good or basic_good or (last3_avg is not None and points >= last3_avg)
+            checks.append(_check("boa_fase", "Boa fase", "ok" if recent_ok else "fail", lens_summary))
         elif last3_avg is None:
             checks.append(_check("boa_fase", "Boa fase", "na", "sem histórico"))
         else:
@@ -359,7 +398,7 @@ def evaluate_player(entry: dict, result: dict | None, position_rank: int | None,
             else:
                 checks.append(_check(profile.lower(), label, "ok" if met >= math.ceil(total / 2) else "fail", "; ".join(parts)))
     if "ESTRATEGICO" in profiles:
-        if (uses_basic and basic_beat) or (not uses_basic and (season_avg is None or points >= season_avg)):
+        if (two_lens and (pts_good or basic_good)) or (not two_lens and (season_avg is None or points >= season_avg)):
             checks.append(_check("estrategico", "Estratégia", "ok", "valeu para quem escalou"))
         else:
             checks.append(_check("estrategico", "Estratégia", "info", "valeu para quem diferenciou"))
@@ -514,7 +553,7 @@ def summarize(evaluated: list[dict]) -> dict:
         "played": len(played),
         "did_not_play": len(evaluated) - len(played),
         "mitou": [p for p in played if p["tier"] == "mitou"],
-        "above_average": sum(1 for p in played if (p["basic_beat"] if p.get("uses_basic") else p["tier"] in ("bom", "mitou"))),
+        "above_average": sum(1 for p in played if p["tier"] in ("bom", "mitou")),
         "checks_ok": ok,
         "checks_total": len(graded),
         "check_rate": round(100 * ok / len(graded)) if graded else 0,
