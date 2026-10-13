@@ -95,9 +95,18 @@ def list_saved_rounds(project: str, remote_config: dict | None = None) -> list[i
 
 
 def load_archive(project: str, rounds: list[int], remote_config: dict | None = None) -> dict[int, dict]:
+    """Pontuação das rodadas pedidas. O que não estiver guardado é buscado na API (por número de rodada) e guardado."""
+    from .feedback import fetch_round_results
+
     archive = {}
     for round_number in rounds:
         results = load_results(project, round_number, remote_config)
+        if not results:
+            try:
+                results = fetch_round_results(round_number)
+                save_results(project, results, remote_config)
+            except Exception:
+                results = None
         if results:
             archive[round_number] = results
     return archive
@@ -106,7 +115,6 @@ def load_archive(project: str, rounds: list[int], remote_config: dict | None = N
 def archive_latest_round(project: str, remote_config: dict | None = None) -> int | None:
     """Guarda a pontuação da última rodada FINALIZADA (mercado aberto), se ainda não estiver arquivada.
 
-    A API do Cartola só devolve a última rodada; arquivar evita perder o histórico.
     Devolve o número da rodada arquivada ou None.
     """
     from .feedback import fetch_market_status, fetch_round_results
@@ -114,9 +122,11 @@ def archive_latest_round(project: str, remote_config: dict | None = None) -> int
     market = fetch_market_status()
     if market.get("status_mercado") != 1:  # 1 = mercado aberto -> a rodada anterior já terminou
         return None
-    results = fetch_round_results()
     finished_round = int(market.get("rodada_atual", 0)) - 1
-    if results["round"] != finished_round or load_results(project, finished_round, remote_config):
+    if finished_round < 1 or load_results(project, finished_round, remote_config):
+        return None
+    results = fetch_round_results(finished_round)
+    if results["round"] != finished_round:
         return None
     save_results(project, results, remote_config)
     return finished_round
