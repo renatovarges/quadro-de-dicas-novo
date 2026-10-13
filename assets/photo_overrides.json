@@ -48,8 +48,10 @@
  "CHAPECOENSE": {
   "BRUNO NUNES DE BARROS": "assets/players/chapecoense/93637_bruno_tubarao.jpg",
   "BRUNO TUBARÃO": "assets/players/chapecoense/93637_bruno_tubarao.jpg",
+  "DUDU": "assets/players/chapecoense/97133_dudu.jpg",
   "KEVIN FEDERIK RAMÍREZ DUTRA": "assets/players/chapecoense/94034_kevin_ramirez.jpg",
   "KEVIN RAMÍREZ": "assets/players/chapecoense/94034_kevin_ramirez.jpg",
+  "LUÍS EDUARDO MARQUES DOS SANTOS": "assets/players/chapecoense/97133_dudu.jpg",
   "RAFAEL DOS SANTOS LACERDA": "assets/players/chapecoense/tecnico_rafael_lacerda.jpg",
   "RAFAEL LACERDA": "assets/players/chapecoense/tecnico_rafael_lacerda.jpg",
   "VINÍCIUS BALIEIRO": "assets/players/chapecoense/110605_vinicius_balieiro.jpg",
@@ -70,8 +72,11 @@
  "CORITIBA": {
   "BUSTOS": "assets/players/coritiba/96678_bustos.jpg",
   "FABRICIO TOMÁS BUSTOS SEIN": "assets/players/coritiba/96678_bustos.jpg",
+  "NICOLÁS FONSECA": "assets/players/coritiba/117926_nicolas_fonseca.jpg",
   "RENATO MARQUES": "assets/players/coritiba/117403_renato_marques.jpg",
-  "RENATO MARQUES DE OLIVEIRA JÚNIOR": "assets/players/coritiba/117403_renato_marques.jpg"
+  "RENATO MARQUES DE OLIVEIRA JÚNIOR": "assets/players/coritiba/117403_renato_marques.jpg",
+  "RODRIGO GELADO": "assets/players/coritiba/122390_rodrigo_gelado.jpg",
+  "RODRIGO SILVA NASCIMENTO": "assets/players/coritiba/122390_rodrigo_gelado.jpg"
  },
  "CRUZEIRO": {
   "ARTUR JORGE": "assets/players/cruzeiro/tecnico_artur_jorge.jpg",
@@ -81,10 +86,12 @@
   "GABRIEL HERNÁN ROJAS": "assets/players/cruzeiro/97101_gabriel_rojas.jpg",
   "GABRIEL ROJAS": "assets/players/cruzeiro/97101_gabriel_rojas.jpg",
   "JOSÉ LUCAS GOMES DA SILVA": "assets/players/cruzeiro/141160_ze_lucas.jpg",
+  "MATÍAS NICOLÁS VIÑA SUSPERREGUY": "assets/players/cruzeiro/98974_vina.jpg",
   "OTÁVIO": "assets/players/cruzeiro/117404_otavio.jpg",
   "OTÁVIO ELEODORO REZENDE COSTA": "assets/players/cruzeiro/117404_otavio.jpg",
   "RHUAN GABRIEL": "assets/players/cruzeiro/146991_rhuan_gabriel.jpg",
   "RHUAN GABRIEL RODRIGUES DE SOUZA SILVA": "assets/players/cruzeiro/146991_rhuan_gabriel.jpg",
+  "VIÑA": "assets/players/cruzeiro/98974_vina.jpg",
   "WESLEY": "assets/players/cruzeiro/117909_wesley.jpg",
   "WESLEY GASSOVA RIBEIRO TEIXEIRA": "assets/players/cruzeiro/117909_wesley.jpg",
   "ZÉ LUCAS": "assets/players/cruzeiro/141160_ze_lucas.jpg"
@@ -115,7 +122,9 @@
  },
  "MIRASSOL": {
   "GUSTAVO HENRIC DA SILVA": "assets/players/mirassol/97450_gustavo_mosquito.jpg",
-  "GUSTAVO MOSQUITO": "assets/players/mirassol/97450_gustavo_mosquito.jpg"
+  "GUSTAVO MOSQUITO": "assets/players/mirassol/97450_gustavo_mosquito.jpg",
+  "JOSÉ ROBERTO ASSUNÇÃO DE ARAÚJO FILHO": "assets/players/mirassol/80076_ze_roberto.jpg",
+  "ZÉ ROBERTO": "assets/players/mirassol/80076_ze_roberto.jpg"
  },
  "PALMEIRAS": {
   "ALEXANDER BARBOZA": "assets/players/palmeiras/99274_alexander_barboza.jpg",
@@ -146,6 +155,8 @@
   "LUCAS VERÍSSIMO": "assets/players/santos/93368_lucas_verissimo.jpg",
   "LUCAS VERÍSSIMO DA SILVA": "assets/players/santos/93368_lucas_verissimo.jpg",
   "OLIVA": "assets/players/santos/101807_oliva.jpg",
+  "PHILIPPE COUTINHO": "assets/players/santos/68899_philippe_coutinho.jpg",
+  "PHILIPPE COUTINHO CORREIA": "assets/players/santos/68899_philippe_coutinho.jpg",
   "RODINEI": "assets/players/santos/73992_rodinei.jpg",
   "RODINEI MARCELO DE ALMEIDA": "assets/players/santos/73992_rodinei.jpg"
  },
@@ -162,6 +173,8 @@
   "LUCCA MARQUES ALENCAR": "assets/players/sao_paulo/141609_lucca.jpg",
   "NEWTON": "assets/players/sao_paulo/104693_newton.jpg",
   "NEWTON ARAÚJO DA COSTA JÚNIOR": "assets/players/sao_paulo/104693_newton.jpg",
+  "PEDRO HENRIQUE CARDOSO DE LIMA": "assets/players/sao_paulo/130525_pedro_lima.jpg",
+  "PEDRO LIMA": "assets/players/sao_paulo/130525_pedro_lima.jpg",
   "PERIVAN DOS SANTOS": "assets/players/sao_paulo/148717_tete.jpg",
   "TETÊ": "assets/players/sao_paulo/148717_tete.jpg"
  },
@@ -177,6 +190,8 @@
  },
  "VITORIA": {
   "DIEGO TARZIA": "assets/players/vitoria/143153_tarzia.jpg",
+  "IGNACIO JESÚS LAQUINTANA MARSICO - NACHO": "assets/players/vitoria/103014_laquintana.jpg",
+  "LAQUINTANA": "assets/players/vitoria/103014_laquintana.jpg",
   "LUCAS RODRIGUES DA SILVA": "assets/players/vitoria/97911_lucas_silva.jpg",
   "LUCAS SILVA": "assets/players/vitoria/97911_lucas_silva.jpg",
   "TARZIA": "assets/players/vitoria/143153_tarzia.jpg"
