@@ -6,7 +6,7 @@ from typing import Callable
 
 from .brand import BRAND
 from .config import BACKGROUND_FILE, FONT_BLACK_FILE, FONT_BOLD_FILE, FONT_MEDIUM_FILE, FONT_REGULAR_FILE, MAIN_LOGO_FILE
-from .feedback import BASIC_POSITIONS, DEFAULT_FORMATION, FORMATIONS, POSITION_ORDER
+from .feedback import BASIC_POSITIONS, DEFAULT_FORMATION, FORMATIONS, GOOD_SCORE, HAS_SG, POSITION_ORDER
 from .photos import photo_data_uri, prefetch_photos
 from .utils import normalize_text, abbreviate_player_name, display_profile_label, file_to_base64, team_badge_path
 
@@ -15,10 +15,14 @@ PhotoResolver = Callable[..., str]
 GREEN, RED, GOLD, GRAY = "#138a2f", "#cf3a34", "#e0a100", "#8a8a8a"
 TIER_STYLE = {
     "mitou": (GOLD, "MITOU"),
-    "bom": (GREEN, "ACIMA DA MÉDIA"),
-    "abaixo": (RED, "ABAIXO DA MÉDIA"),
+    "bom": (GREEN, "BOA PONTUAÇÃO"),
+    "abaixo": (RED, "ABAIXO DO ESPERADO"),
     "nao_jogou": (GRAY, "NÃO JOGOU"),
 }
+
+
+def _fmt(value: float) -> str:
+    return f"{value:.1f}".replace(".", ",") if value % 1 else f"{int(value)}"
 
 
 def fmt(value: float | None, decimals: int = 1) -> str:
@@ -290,7 +294,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
     mitou_names = ", ".join(abbreviate_player_name(p["name"], 14).title() for p in mitou[:3]) or "ninguém"
     stats = [
         ("Aproveitamento", f'{summary["check_rate"]}%', f'{summary["checks_ok"]} de {summary["checks_total"]} critérios confirmados'),
-        ("Acima da média", f'{summary["above_average"]}/{summary["played"]}', "indicados que jogaram"),
+        ("Boas pontuações", f'{summary["above_average"]}/{summary["played"]}', "pelo critério de cada posição"),
         ("Mitaram (+10 pts)", str(len(mitou)), escape(mitou_names)),
         ("Na seleção do Cartola", str(len(summary["in_cartola_team"])), "dos meus indicados"),
     ]
@@ -339,7 +343,6 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
         una_items = []
         for player in una_players:
             _color, tier_label = TIER_STYLE[player["tier"]]
-            tier_label = player.get("tier_label") or tier_label
             points_html = fmt(player["points"]) if player["played"] else "-"
             una_items.append(
                 f'<div class="una-item"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
@@ -431,7 +434,7 @@ PANEL_CSS = """
     .chk { display: flex; flex-wrap: wrap; gap: 6px 8px; }
     .ck { background: rgba(247,239,231,.96); color: #241108; border-radius: 9px; padding: 4px 10px 4px 8px; font-size: 15px; font-weight: 700; line-height: 1.15; display: flex; align-items: center; gap: 7px; }
     .ck b { width: 22px; height: 22px; border-radius: 50%; color: #fff; text-align: center; line-height: 22px; font-size: 15px; flex: none; }
-    .ck.ok b { background: #138a2f; } .ck.fail b { background: #cf3a34; } .ck.info b { background: #2a7de1; } .ck.na b { background: #8a8a8a; }
+    .ck.ok b { background: #138a2f; } .ck.fail b { background: #cf3a34; } .ck.info b { background: #2a7de1; } .ck.na b { background: #8a8a8a; } .ck.ref b { background: #7a7a7a; } .ck.ref { opacity: .92; }
     .ck small { display: block; font-size: 12px; font-weight: 500; opacity: .8; }
     .res { text-align: center; background: rgba(247,239,231,.96); color: #241108; border-radius: 14px; padding: 8px 6px 8px; }
     .res .big { font-size: 46px; font-weight: 900; line-height: 1; }
@@ -444,12 +447,11 @@ PANEL_CSS = """
     .empty { background: rgba(255,255,255,.85); border-radius: 16px; padding: 30px; text-align: center; font-size: 24px; font-weight: 700; }
 """
 
-CHECK_MARK = {"ok": "✓", "fail": "✗", "info": "↔", "na": "?"}
+CHECK_MARK = {"ok": "✓", "fail": "✗", "info": "↔", "na": "?", "ref": "≈"}
 
 
 def _result_card(player: dict, resolver: PhotoResolver) -> str:
     tier_color, tier_label = TIER_STYLE[player["tier"]]
-    tier_label = player.get("tier_label") or tier_label
     badges = player.get("badges", {})
     chips = [f'<span class="chip conf">CONF. {player["confidence"]}</span>']
     if badges.get("unanimidade"):
@@ -465,26 +467,22 @@ def _result_card(player: dict, resolver: PhotoResolver) -> str:
             f'<div class="ck {c["status"]}"><b>{CHECK_MARK[c["status"]]}</b><div>{escape(c["label"])}<small>{escape(c["detail"])}</small></div></div>'
             for c in player["checks"]
         ) or '<div class="ck na"><b>?</b><div>Sem critério marcado</div></div>'
-        base = player["baseline"].get("avg_points_season")
+        base = player.get("own_avg")
+        pos_avg = player.get("position_avg")
         rank_line = (
             f'<div class="sub" style="font-weight:500">{player["rank_position"]}º da posição na rodada</div>'
             if player.get("rank_position") else ""
         )
+        lines = [f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>']
         if player.get("uses_basic"):
-            games = player.get("basic_games") or 5
-            avg_text = f' (méd. {games}J: {fmt(player["basic_avg"])})' if player.get("basic_avg") is not None else ""
-            res = (
-                f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>'
-                f'<div class="sub">básica {fmt(player["basic"])}{avg_text}</div>'
-                f'<div class="sub" style="font-weight:600">média de pontos: {fmt(base)}</div>'
-                + rank_line
-            )
-        else:
-            res = (
-                f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>'
-                f'<div class="sub">média {fmt(base)} | básica {fmt(player["basic"])}</div>'
-                + rank_line
-            )
+            avg_text = f' (méd. {player.get("basic_games") or 5}J: {fmt(player["basic_avg"])})' if player.get("basic_avg") is not None else ""
+            lines.append(f'<div class="sub">básica {fmt(player["basic"])}{avg_text}</div>')
+        arrow = lambda value, ref: "▲" if value >= ref else "▼"  # noqa: E731
+        if base is not None:
+            lines.append(f'<div class="sub" style="font-weight:600">média dele: {fmt(base)} {arrow(player["points"], base)}</div>')
+        if pos_avg is not None:
+            lines.append(f'<div class="sub" style="font-weight:500;opacity:.85">média da posição: {fmt(pos_avg)} {arrow(player["points"], pos_avg)}</div>')
+        res = "".join(lines) + rank_line
     else:
         checks = '<div class="ck na"><b>–</b><div>Não entrou em campo<small>fora das contas</small></div></div>'
         res = '<div class="lbl">Pontos</div><div class="big" style="color:#8a8a8a">-</div>'
@@ -532,11 +530,18 @@ def build_position_panel_html(
     _collect_urls(players, resolver)
     cards = "".join(_result_card(p, resolver) for p in players) or '<div class="empty">Nenhum jogador indicado nesta posição.</div>'
     suffix = f" ({page}/{pages})" if pages > 1 else ""
-    defender_note = (
-        '<div class="note">Critério dos defensores: olhamos os dois lados. Pontos na média geral dele (ou acima) é positivo; '
-        'média básica dos últimos 5 jogos batida também (zagueiro com básica acima de 3 pts conta). Um lado bom já valoriza; '
-        'os dois é o melhor cenário; os dois abaixo é negativo. Básica = pontos sem gols, assistências, SG e defesa de pênalti.</div>'
+    full_limit, no_sg_limit = GOOD_SCORE[position_key]
+    if position_key in HAS_SG and full_limit != no_sg_limit:
+        rule = f"{_fmt(full_limit)} pts ou mais é bom; sem SG, {_fmt(no_sg_limit)} pts ou mais já é bom"
+    else:
+        rule = f"{_fmt(full_limit)} pts ou mais é bom"
+    defender_extra = (
+        " A média básica (pontos sem gols, assistências, SG e defesa de pênalti) aparece como referência."
         if position_key in BASIC_POSITIONS else ""
+    )
+    defender_note = (
+        f'<div class="note">Critério de boa pontuação ({position_key.lower()}): {rule}. '
+        f'A comparação com a média do jogador e com a média da posição na rodada é só referência.{defender_extra}</div>'
     )
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}{_brand_css()}</style></head>
     <body><div class="art panel" id="capture">{_demo_banner(evaluation)}
