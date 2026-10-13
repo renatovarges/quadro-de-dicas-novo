@@ -338,6 +338,7 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
         una_items = []
         for player in una_players:
             _color, tier_label = TIER_STYLE[player["tier"]]
+            tier_label = player.get("tier_label") or tier_label
             points_html = fmt(player["points"]) if player["played"] else "-"
             una_items.append(
                 f'<div class="una-item"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
@@ -447,6 +448,7 @@ CHECK_MARK = {"ok": "✓", "fail": "✗", "info": "↔", "na": "?"}
 
 def _result_card(player: dict, resolver: PhotoResolver) -> str:
     tier_color, tier_label = TIER_STYLE[player["tier"]]
+    tier_label = player.get("tier_label") or tier_label
     badges = player.get("badges", {})
     chips = [f'<span class="chip conf">CONF. {player["confidence"]}</span>']
     if badges.get("unanimidade"):
@@ -469,10 +471,11 @@ def _result_card(player: dict, resolver: PhotoResolver) -> str:
         )
         if player.get("uses_basic"):
             games = player.get("basic_games") or 5
+            avg_text = f' (méd. {games}J: {fmt(player["basic_avg"])})' if player.get("basic_avg") is not None else ""
             res = (
                 f'<div class="lbl">Pontos</div><div class="big" style="color:{tier_color}">{fmt(player["points"])}</div>'
-                f'<div class="sub">básica {fmt(player["basic"])}</div>'
-                f'<div class="sub" style="font-weight:600">média básica ({games}J): {fmt(player["basic_avg"])}</div>'
+                f'<div class="sub">básica {fmt(player["basic"])}{avg_text}</div>'
+                f'<div class="sub" style="font-weight:600">média de pontos: {fmt(base)}</div>'
                 + rank_line
             )
         else:
@@ -529,8 +532,9 @@ def build_position_panel_html(
     cards = "".join(_result_card(p, resolver) for p in players) or '<div class="empty">Nenhum jogador indicado nesta posição.</div>'
     suffix = f" ({page}/{pages})" if pages > 1 else ""
     defender_note = (
-        '<div class="note">Critério dos defensores: média básica dos últimos 5 jogos (pontuação sem gols, assistências, '
-        'SG e defesa de pênalti). Bateu a própria média básica = foi bem.</div>'
+        '<div class="note">Critério dos defensores: olhamos os dois lados. Pontos na média geral dele (ou acima) é positivo; '
+        'média básica dos últimos 5 jogos batida também (zagueiro com básica acima de 3 pts conta). Um lado bom já valoriza; '
+        'os dois é o melhor cenário; os dois abaixo é negativo. Básica = pontos sem gols, assistências, SG e defesa de pênalti.</div>'
         if position_key in BASIC_POSITIONS else ""
     )
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>{_base_css()}{_themed(PANEL_CSS)}{_brand_css()}</style></head>
