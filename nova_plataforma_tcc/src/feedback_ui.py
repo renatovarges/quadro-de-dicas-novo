@@ -199,8 +199,8 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
         if archived_rounds:
             st.write("Rodadas arquivadas: " + ", ".join(map(str, archived_rounds)))
         st.caption(
-            "A planilha de scouts cobre as rodadas anteriores; as rodadas novas vêm da API e são arquivadas "
-            "automaticamente (aqui e pelo robô do GitHub) para completar o histórico das médias."
+            "A planilha de scouts cobre as rodadas anteriores; as rodadas novas vêm da API (por número de rodada) e são "
+            "arquivadas automaticamente (aqui e pelo robô do GitHub) para completar o histórico das médias."
         )
 
     # ---- importar indicações de um CSV (ex.: rodada que já passou) ----
@@ -276,30 +276,23 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
             if not snapshot:
                 st.error("Não encontrei o registro desta rodada.")
             else:
-                results, api_round = None, None
+                results = None
                 with st.spinner("Buscando pontuação no Cartola..."):
                     try:
-                        live = fetch_round_results()
-                        api_round = live["round"]
-                        if api_round == chosen_round:
-                            results = live
-                            save_results(PROJECT, live, remote_config)
-                            market = fetch_market_status()
-                            if market.get("bola_rolando") or (
-                                market.get("status_mercado") == 2 and market.get("rodada_atual") == chosen_round
-                            ):
-                                st.warning("A rodada parece ainda em andamento: os pontos são parciais. Gere de novo quando ela terminar.")
+                        results = fetch_round_results(chosen_round)
+                        save_results(PROJECT, results, remote_config)
+                        market = fetch_market_status()
+                        if market.get("bola_rolando") or (
+                            market.get("status_mercado") == 2 and market.get("rodada_atual") == chosen_round
+                        ):
+                            st.warning("A rodada parece ainda em andamento: os pontos são parciais. Gere de novo quando ela terminar.")
                     except Exception as exc:
-                        st.warning(f"Não consegui consultar a API agora ({exc}); tentando o resultado já guardado.")
-                    if results is None:
+                        st.warning(f"Não consegui buscar a pontuação agora ({exc}); tentando o resultado já guardado.")
                         results = load_results(PROJECT, chosen_round, remote_config)
                         if results:
                             st.info("Usando a pontuação desta rodada que já estava guardada.")
-                        elif api_round is not None:
-                            st.error(
-                                f"A API do Cartola está devolvendo a rodada {api_round}, não a {chosen_round}. "
-                                "A pontuação só fica disponível enquanto a rodada é a última fechada."
-                            )
+                        else:
+                            st.error(f"Não encontrei a pontuação da rodada {chosen_round}. Tente de novo em alguns minutos.")
                 if results:
                     st.session_state["fb_eval"] = evaluate_snapshot(
                         snapshot, results, _most_escalated(chosen_round, remote_config)

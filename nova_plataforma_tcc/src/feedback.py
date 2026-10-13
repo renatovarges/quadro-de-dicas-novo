@@ -74,9 +74,24 @@ def scout_value(scout: dict, key: str) -> float:
     return s(key)
 
 
-def fetch_round_results(timeout: int = 30) -> dict:
-    """Pontuação da última rodada fechada: {'round': n, 'players': {atleta_id: {...}}}."""
-    response = requests.get(PONTUADOS_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+def latest_round_number(timeout: int = 20) -> int:
+    """Rodada mais recente com pontuação: a atual se o mercado está fechado (em andamento), senão a anterior."""
+    market = fetch_market_status(timeout)
+    current = int(market.get("rodada_atual") or 0)
+    return current if market.get("status_mercado") == 2 else current - 1
+
+
+def fetch_round_results(round_number: int | None = None, timeout: int = 30) -> dict:
+    """Pontuação de uma rodada: {'round': n, 'players': {atleta_id: {...}}}.
+
+    Usa /atletas/pontuados/<rodada>, que funciona para qualquer rodada já jogada. O endereço sem número
+    devolve vazio (204) depois que o mercado reabre. Sem `round_number`, usa a rodada mais recente.
+    """
+    if round_number is None:
+        round_number = latest_round_number(timeout)
+    response = requests.get(f"{PONTUADOS_URL}/{int(round_number)}", headers={"User-Agent": "Mozilla/5.0"}, timeout=timeout)
+    if response.status_code in (204, 400, 404) or not response.content.strip():
+        raise RuntimeError(f"O Cartola ainda não liberou a pontuação da rodada {round_number}.")
     response.raise_for_status()
     payload = response.json()
     clubs = payload.get("clubes", {})
