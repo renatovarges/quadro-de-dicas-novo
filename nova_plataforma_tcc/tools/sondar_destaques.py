@@ -22,9 +22,23 @@ from src.data_sources import refresh_globo_tokens  # noqa: E402
 BASE = "https://api.cartola.globo.com"
 CANDIDATES = [
     "/auth/mercado/destaques",
+    "/auth/mercado/destaques/reservas",
     "/auth/mercado/destaques/capitaes",
-    "/auth/mercado/capitaes",
-    "/auth/destaques",
+    "/auth/mercado/destaques/capitao",
+    "/auth/mercado/destaques?tipo=capitao",
+    "/auth/mercado/destaques?tipo=capitaes",
+    "/auth/mercado/reservas/destaques",
+    "/auth/mercado/capitaes/destaques",
+    "/auth/mercado/mais-capitaes",
+    "/auth/mercado/mais-escalados",
+    "/auth/mercado/capitao",
+    "/auth/mercado/tendencias",
+    "/auth/mercado/popularidade",
+    "/auth/mercado/escolhas",
+    "/auth/destaques/capitaes",
+    "/auth/capitaes",
+    "/auth/rodada/destaques",
+    "/auth/rodada/capitaes",
 ]
 
 
@@ -73,9 +87,9 @@ def main() -> int:
     token = tokens["access_token"]
     refreshed = False
     for path in CANDIDATES:
-        for variant in range(3):
+        for variant in (1, 0, 2):
             response = call(path, token, variant)
-            if response.status_code == 401 and not refreshed and variant == 0:
+            if response.status_code == 401 and not refreshed and variant == 1:
                 print("Token expirado; renovando uma vez.")
                 tokens = refresh_globo_tokens(**tokens)
                 save_globo_auth(tokens, config)
