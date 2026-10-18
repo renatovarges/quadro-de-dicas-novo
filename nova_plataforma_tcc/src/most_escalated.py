@@ -114,6 +114,86 @@ def fetch_captains(close_timestamp: int | None = None, timeout: int = 30) -> dic
     return result
 
 
+OFFICIAL_BASE = "https://api.cartola.globo.com"
+OFFICIAL_PATHS = {"top": "/auth/mercado/destaques", "reserves": "/auth/mercado/destaques/reservas"}
+
+
+def parse_official_items(items: list) -> list[dict]:
+    """Lista oficial (formato do app do Cartola) -> lista enxuta e estável."""
+    parsed = []
+    for item in items or []:
+        athlete = item.get("Atleta") or {}
+        if not athlete.get("atleta_id"):
+            continue
+        code = str(item.get("posicao_abreviacao") or "").strip().lower()[:3]
+        position = POSITION_BY_CODE.get(code, "")
+        parsed.append(
+            {
+                "athlete_id": int(athlete["atleta_id"]),
+                "name": athlete.get("apelido") or athlete.get("apelido_abreviado") or "",
+                "full_name": athlete.get("nome") or "",
+                "position": position or str(item.get("posicao") or ""),
+                "team": resolve_team_name(item.get("clube_nome") or item.get("clube") or ""),
+                "count": int(item.get("escalacoes") or 0),
+            }
+        )
+    return sorted(parsed, key=lambda p: -p["count"])
+
+
+def fetch_official_destaques(access_token: str, timeout: int = 30) -> dict | None:
+    """Mais escalados (top 20) e reservas mais escalados pela API oficial do Cartola (exige login Globo).
+
+    Devolve None se o token não servir; só vale com o mercado FECHADO (depois da reabertura mostra a rodada seguinte).
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json, text/plain, */*",
+        "x-glb-app-name": "cartola-web",
+        "Authorization": f"Bearer {access_token}",
+    }
+    result: dict = {}
+    for key, path in OFFICIAL_PATHS.items():
+        try:
+            response = requests.get(OFFICIAL_BASE + path, headers=headers, timeout=timeout)
+            if response.status_code != 200:
+                return None if key == "top" else result | {"captured_at": now_iso()}
+            result[key] = parse_official_items(response.json())
+        except (requests.RequestException, ValueError):
+            return None if key == "top" else result | {"captured_at": now_iso()}
+    if not result.get("top"):
+        return None
+    result["captured_at"] = now_iso()
+    return result
+
+
+def reserves_of(payload: dict) -> list[dict]:
+    """Reservas mais escalados: lista oficial; se não houver, as reservas do Gato Mestre."""
+    official = (payload.get("official") or {}).get("reserves") or []
+    if official:
+        return official
+    return sorted((p for p in payload["players"] if p["group"] == "reserva"), key=lambda p: -p["count"])
+
+
+def build_reserves(payload: dict, results: dict) -> list[dict]:
+    reserves = []
+    for player in reserves_of(payload):
+        result = results["players"].get(player["athlete_id"])
+        played = bool(result and result["played"])
+        reserves.append(
+            {
+                "athlete_id": player["athlete_id"],
+                "name": player["name"],
+                "full_name": player.get("full_name", ""),
+                "team": player.get("team", ""),
+                "position": player["position"],
+                "count": player["count"],
+                "played": played,
+                "points": result["points"] if played else 0.0,
+            }
+        )
+    return reserves
+
+
 def starters(payload: dict) -> list[dict]:
     """Os 12 titulares do time dos mais escalados (1-2-2-3-3 + técnico), na ordem das posições."""
     picked: list[dict] = []

@@ -106,6 +106,12 @@ def build_caption(evaluation: dict) -> str:
         lines.append(f"🏅 **{len(in_team)} indicados entraram na seleção da rodada:** {_lista([_nome(p) for p in in_team])}")
         lines.append("")
 
+    # ---- reservas mais escalados ----
+    reserves = [x for x in (evaluation.get("reserves") or []) if x["played"]][:4]
+    if reserves:
+        lines.append("🪑 **Reservas mais escalados:** " + " · ".join(f"{_nome(x)} {_n(x['points'])}" for x in reserves))
+        lines.append("")
+
     # ---- destaques ----
     best = summary["best"][:3]
     worst = summary["worst"][:2]

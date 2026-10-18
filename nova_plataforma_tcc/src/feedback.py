@@ -465,16 +465,21 @@ def evaluate_snapshot(snapshot: dict, results: dict, most_escalated: dict | None
         player["in_cartola_team"] = player["athlete_id"] in cartola_ids
 
     escalated_team = None
+    reserves: list[dict] = []
     if most_escalated and most_escalated.get("players"):
         from .most_escalated import build_team as build_escalated_team
 
         escalated_team = build_escalated_team(most_escalated, results)
+        from .most_escalated import build_reserves
+
+        reserves = build_reserves(most_escalated, results)
 
     return {
         "round": snapshot["round"],
         "players": evaluated,
         "position_averages": position_averages,
         "most_escalated": escalated_team,
+        "reserves": reserves,
         "cartola_team": cartola_team,
         "my_team": best_formations(evaluated),
         "summary": summarize(evaluated),

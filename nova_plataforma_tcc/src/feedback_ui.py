@@ -20,6 +20,7 @@ from .feedback import (
 from .caption import build_caption
 from .feedback_render import build_all_arts
 from .indications_import import parse_indications_csv
+from .auth_store import load_globo_auth
 from .indications_store import (
     archive_latest_round,
     archive_most_escalated,
@@ -41,13 +42,22 @@ def _saved_rounds(remote_config, refresh: bool = False) -> list[int]:
     return st.session_state["fb_saved_rounds"]
 
 
+def _stored_access_token(remote_config) -> str | None:
+    """Token Globo guardado (se estiver vencido, a busca oficial simplesmente não acontece e o robô completa depois)."""
+    try:
+        tokens = load_globo_auth(remote_config)
+        return tokens["access_token"] if tokens else None
+    except Exception:
+        return None
+
+
 def _most_escalated(round_number: int, remote_config) -> dict | None:
     """Mais escalados guardados da rodada; se faltar e o mercado ainda estiver fechado nela, captura agora."""
     try:
         stored = load_most_escalated(round_number, remote_config)
         if stored:
             return stored
-        if archive_most_escalated(remote_config) == round_number:
+        if archive_most_escalated(remote_config, _stored_access_token(remote_config)) == round_number:
             return load_most_escalated(round_number, remote_config)
     except Exception:
         pass
@@ -179,7 +189,7 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
         except Exception:
             pass
         try:
-            captured = archive_most_escalated(remote_config)
+            captured = archive_most_escalated(remote_config, _stored_access_token(remote_config))
             if captured:
                 st.toast(f"Mais escalados da rodada {captured} guardados.")
         except Exception:
@@ -194,7 +204,7 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
         if st.button("Atualizar/arquivar pontuação e mais escalados agora", use_container_width=True):
             try:
                 archived = archive_latest_round(PROJECT, remote_config)
-                captured = archive_most_escalated(remote_config)
+                captured = archive_most_escalated(remote_config, _stored_access_token(remote_config))
                 if captured:
                     st.success(f"Mais escalados da rodada {captured} guardados (números finais de escalações).")
                 if archived:

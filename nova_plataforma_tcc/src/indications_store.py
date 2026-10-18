@@ -143,24 +143,33 @@ def load_most_escalated(round_number: int, remote_config: dict | None = None) ->
     return _load(_record_id("mais_escalados", "", round_number), remote_config) or load_repo_archive(round_number)
 
 
-def archive_most_escalated(remote_config: dict | None = None) -> int | None:
+def archive_most_escalated(remote_config: dict | None = None, access_token: str | None = None) -> int | None:
     """Guarda os mais escalados da rodada atual, mas só com o mercado FECHADO (números finais).
 
-    Devolve a rodada guardada ou None (mercado aberto, já guardado, ou página indisponível).
+    Com `access_token` (login Globo) guarda também a lista OFICIAL (top 20 e reservas) e completa registros
+    que foram guardados antes sem ela. Devolve a rodada guardada/completada ou None.
     """
     from .feedback import fetch_market_status
-    from .most_escalated import fetch_captains, fetch_most_escalated
+    from .most_escalated import fetch_captains, fetch_most_escalated, fetch_official_destaques
 
     market = fetch_market_status()
     if market.get("status_mercado") != 2:  # 2 = fechado
         return None
     round_number = int(market.get("rodada_atual", 0))
-    if load_most_escalated(round_number, remote_config):
+    existing = load_most_escalated(round_number, remote_config)
+    if existing:
+        if access_token and not existing.get("official"):
+            official = fetch_official_destaques(access_token)
+            if official:
+                save_most_escalated(round_number, {**existing, "official": official}, remote_config)
+                return round_number
         return None
     payload = fetch_most_escalated()
     if len(payload["players"]) < 12:
         return None  # página incompleta: não guarda dado ruim
     close_timestamp = (market.get("fechamento") or {}).get("timestamp")
     payload["captain_data"] = fetch_captains(close_timestamp)  # None se a fonte de terceiros estiver fora do ar
+    if access_token:
+        payload["official"] = fetch_official_destaques(access_token)
     save_most_escalated(round_number, payload, remote_config)
     return round_number
