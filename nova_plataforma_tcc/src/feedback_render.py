@@ -360,12 +360,27 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
             f'<div class="team-box una-box"><div class="team-head"><h2>{_una_badge()} Unanimidades</h2>'
             f'<span class="una-count">{correspondeu}</span></div><div class="una-grid">{"".join(una_items)}</div></div>'
         )
+    reserves = evaluation.get("reserves") or []
+    reserves_box = ""
+    if reserves:
+        rows = []
+        for player in reserves[:5]:
+            pts = fmt(player["points"]) if player["played"] else "-"
+            count_text = f'{player["count"]:,}'.replace(",", ".")
+            pos_text = player["position"][:-1] if player["position"].endswith("s") else player["position"]
+            rows.append(
+                f'<div class="rank-row"><div class="ph-wrap">{_photo(player, resolver)}{_badge(player["team"])}</div>'
+                f'<div class="rn">{escape(abbreviate_player_name(player["name"], 16))}'
+                f'<small>{escape(pos_text)} · {count_text} escalações</small></div>'
+                f'<div class="rp gold">{pts}</div></div>'
+            )
+        reserves_box = f'<div class="side-box"><h3>Reservas mais escalados</h3>{"".join(rows)}</div>'
     best_rows = _rank_rows(summary["best"], "gold")
     worst_rows = _rank_rows(summary["worst"], "bad") if summary["worst"] else ""
     worst_box = f'<div class="side-box"><h3>Piores indicações</h3>{worst_rows}</div>' if worst_rows else ""
     forms_box = f'<div class="side-box"><h3>Outras formações</h3><div class="fwrap">{"".join(chips)}</div><div style="margin-top:8px;font-weight:700">{forms_note}</div></div>'
     side_html = (
-        f'<div class="side"><div class="side-box"><h3>Placar da rodada (pontos)</h3>{bars_html}</div>'
+        f'<div class="side"><div class="side-box"><h3>Placar da rodada (pontos)</h3>{bars_html}</div>{reserves_box}'
         f'<div class="side-box"><h3>Melhores indicações</h3>{best_rows}</div>{worst_box}{forms_box}</div>'
     )
 

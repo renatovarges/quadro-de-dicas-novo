@@ -87,7 +87,7 @@ def main() -> int:
     except Exception as exc:  # o arquivamento nao pode derrubar a atualizacao do MPV
         print(f"Aviso: nao consegui arquivar a pontuacao da rodada: {exc}")
     try:
-        captured = archive_most_escalated(remote_config)
+        captured = archive_most_escalated(remote_config, renewed_tokens["access_token"])
         print(f"Mais escalados da rodada {captured} guardados." if captured else "Mais escalados: nada novo.")
     except Exception as exc:
         print(f"Aviso: nao consegui guardar os mais escalados: {exc}")
