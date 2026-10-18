@@ -1,0 +1,28 @@
+name: Sondar destaques (manual)
+
+# Execução manual e pontual: investiga se /auth/mercado/destaques traz os capitães mais escalados.
+# Usa o MESMO grupo de concorrência do robô do MPV para nunca renovar o token ao mesmo tempo.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: refresh-mpv-cache
+  cancel-in-progress: false
+
+jobs:
+  sondar:
+    name: Sondar endpoint de destaques
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r nova_plataforma_tcc/requirements.txt
+      - name: Sondar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AUTH_ENCRYPTION_KEY: ${{ secrets.AUTH_ENCRYPTION_KEY }}
+        run: python nova_plataforma_tcc/tools/sondar_destaques.py
