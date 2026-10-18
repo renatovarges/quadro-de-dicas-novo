@@ -36,6 +36,24 @@ def _pick(pattern: str, text: str) -> str | None:
     return match.group(1) if match else None
 
 
+MANUAL_CAPTAIN_DIR = ROOT_PROJECT_DIR / "data" / "capitao_manual"
+
+
+def load_manual_captain(round_number) -> dict | None:
+    """Capitão mais escalado informado à mão (data/capitao_manual/r<rodada>.json), para quando a fonte automática falha.
+
+    Formato: {"athlete_id": 100652, "name": "Yuri Alberto"}. Tem prioridade sobre a fonte automática.
+    """
+    try:
+        path = MANUAL_CAPTAIN_DIR / f"r{int(round_number):02d}.json"
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if data.get("athlete_id") else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def parse_html(html: str) -> list[dict]:
     """HTML do Gato Mestre -> lista de escalados (titulares, reservas e técnico)."""
     players, seen = [], set()
@@ -221,12 +239,20 @@ def build_team(payload: dict, results: dict) -> dict:
                 "points": result["points"] if played else 0.0,
             }
         )
-    captain_id, bonus, note = None, 0.0, ""
+    captain_id, bonus, note, captain_source = None, 0.0, "", ""
     captains = (payload.get("captain_data") or {}).get("captains") or []
     in_team = {p["athlete_id"]: p for p in team if p["position"] != "Técnicos"}
+    manual = load_manual_captain(payload.get("round")) if payload.get("round") else None
+    if manual and manual["athlete_id"] in in_team:
+        captain_id = manual["athlete_id"]
+        bonus = round(0.5 * in_team[captain_id]["points"], 2)
+        captain_source = "manual"
+        note = "capitão informado manualmente"
+        captains = []
     for candidate in sorted(captains, key=lambda c: c.get("rank") or 99):
         if candidate.get("athlete_id") in in_team:
             captain_id = candidate["athlete_id"]
+            captain_source = "terceiros"
             bonus = round(0.5 * in_team[captain_id]["points"], 2)
             minutes = (payload.get("captain_data") or {}).get("minutes_before_close")
             if minutes is not None and minutes > CAPTAIN_MAX_MINUTES_BEFORE_CLOSE:
@@ -239,6 +265,7 @@ def build_team(payload: dict, results: dict) -> dict:
         "captain_id": captain_id,
         "captain_bonus": bonus,
         "captain_note": note,
+        "captain_source": captain_source,
         "captured_at": payload.get("captured_at"),
     }
 

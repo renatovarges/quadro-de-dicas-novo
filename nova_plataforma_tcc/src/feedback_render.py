@@ -386,13 +386,12 @@ def build_summary_html(evaluation: dict, resolver: PhotoResolver) -> str:
 
     captain_source_note = ""
     if escalated and escalated.get("captain_id") is not None:
+        source_text = "informado manualmente" if escalated.get("captain_source") == "manual" else "fonte de terceiros (Cartomante FC)"
         captain_source_note = (
-            "<span>Capitão dos mais escalados: fonte de terceiros (Cartomante FC)"
-            + (f" - {escalated['captain_note']}" if escalated.get("captain_note") else "")
+            f"<span>Capitão dos mais escalados: {source_text}"
+            + (f" - {escalated['captain_note']}" if escalated.get("captain_note") and escalated.get("captain_source") != "manual" else "")
             + "</span>"
         )
-    forms_bar_html = f'<div class="forms"><h3>Outras formações</h3>{"".join(chips)}<span style="font-weight:700">{forms_note}</span></div>'
-    una_section_html = f'<div style="margin-top:22px">{una_section}</div>' if una_section else ""
     if escalated:
         escalated_ids = {p["athlete_id"] for p in escalated["players"]}
         if escalated.get("captain_id") is not None:
