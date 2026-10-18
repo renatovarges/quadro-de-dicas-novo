@@ -1,7 +1,8 @@
 """Sonda: o endpoint autenticado /auth/mercado/destaques do Cartola traz capitães mais escalados?
 
 Usa o token Globo já guardado (o mesmo do robô do MPV). NÃO imprime token nem dados pessoais:
-só o status HTTP e o FORMATO da resposta (nomes dos campos e tipos). Rodar só quando precisar investigar.
+só o status HTTP, a mensagem de erro (curta) e o FORMATO da resposta (nomes dos campos e tipos).
+Rodar só quando precisar investigar.
 """
 from __future__ import annotations
 
@@ -49,14 +50,18 @@ def shape(value, depth: int = 0, max_depth: int = 4):
     return type(value).__name__
 
 
-def call(path: str, token: str) -> requests.Response:
-    headers = {
+def call(path: str, token: str, variant: int) -> requests.Response:
+    base_headers = {
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json, text/plain, */*",
         "x-glb-app-name": "cartola-web",
-        "X-GLB-Token": token,
     }
-    return requests.get(BASE + path, headers=headers, timeout=25)
+    variants = [
+        {"X-GLB-Token": token},
+        {"Authorization": f"Bearer {token}"},
+        {"X-GLB-Token": token, "Authorization": f"Bearer {token}"},
+    ]
+    return requests.get(BASE + path, headers=base_headers | variants[variant], timeout=25)
 
 
 def main() -> int:
@@ -68,24 +73,29 @@ def main() -> int:
     token = tokens["access_token"]
     refreshed = False
     for path in CANDIDATES:
-        response = call(path, token)
-        if response.status_code == 401 and not refreshed:
-            print("Token expirado; renovando uma vez.")
-            tokens = refresh_globo_tokens(**tokens)
-            save_globo_auth(tokens, config)
-            token, refreshed = tokens["access_token"], True
-            response = call(path, token)
-        print(f"\n== {path} -> HTTP {response.status_code} ({len(response.content)} bytes)")
-        if response.status_code != 200:
-            continue
-        try:
-            payload = response.json()
-        except ValueError:
-            print("Resposta não é JSON.")
-            continue
-        print("FORMATO:", json.dumps(shape(payload), ensure_ascii=False, indent=1)[:3500])
-        text = json.dumps(payload, ensure_ascii=False).lower()
-        print("menciona 'capitao'/'capitão':", "capit" in text)
+        for variant in range(3):
+            response = call(path, token, variant)
+            if response.status_code == 401 and not refreshed and variant == 0:
+                print("Token expirado; renovando uma vez.")
+                tokens = refresh_globo_tokens(**tokens)
+                save_globo_auth(tokens, config)
+                token, refreshed = tokens["access_token"], True
+                response = call(path, token, variant)
+            print(f"\n== {path} [formato {variant + 1}] -> HTTP {response.status_code} ({len(response.content)} bytes)")
+            if response.status_code != 200:
+                print("   mensagem:", response.text[:160].replace("\n", " "))
+                if response.status_code == 404:
+                    break
+                continue
+            try:
+                payload = response.json()
+            except ValueError:
+                print("Resposta não é JSON.")
+                break
+            print("FORMATO:", json.dumps(shape(payload), ensure_ascii=False, indent=1)[:3500])
+            text = json.dumps(payload, ensure_ascii=False).lower()
+            print("menciona 'capitao'/'capitão':", "capit" in text)
+            break
     return 0
 
 
