@@ -37,4 +37,5 @@ jobs:
           GLOBO_ACCESS_TOKEN: ${{ secrets.GLOBO_ACCESS_TOKEN }}
           GLOBO_ID_TOKEN: ${{ secrets.GLOBO_ID_TOKEN }}
           GLOBO_REFRESH_TOKEN: ${{ secrets.GLOBO_REFRESH_TOKEN }}
+          H2H_ROBO_LEITURA_CHAVE: ${{ secrets.H2H_ROBO_LEITURA_CHAVE }}
         run: python nova_plataforma_tcc/tools/refresh_mpv_cache.py

@@ -6,6 +6,7 @@ então não é preciso criar nada novo. Sem Supabase, grava arquivos JSON em `.l
 from __future__ import annotations
 
 import json
+import os
 
 import requests
 from cryptography.fernet import InvalidToken
@@ -158,11 +159,22 @@ def archive_most_escalated(remote_config: dict | None = None, access_token: str 
     round_number = int(market.get("rodada_atual", 0))
     existing = load_most_escalated(round_number, remote_config)
     if existing:
+        # completa o que faltou no registro (lista oficial e/ou capitães); nunca sobrescreve o que já existe
+        completed = dict(existing)
+        changed = False
         if access_token and not existing.get("official"):
             official = fetch_official_destaques(access_token)
             if official:
-                save_most_escalated(round_number, {**existing, "official": official}, remote_config)
-                return round_number
+                completed["official"] = official
+                changed = True
+        if not existing.get("captain_data") and os.environ.get("H2H_ROBO_LEITURA_CHAVE", "").strip():
+            captains = fetch_captains((market.get("fechamento") or {}).get("timestamp"))
+            if captains and captains.get("captains"):
+                completed["captain_data"] = captains
+                changed = True
+        if changed:
+            save_most_escalated(round_number, completed, remote_config)
+            return round_number
         return None
     payload = fetch_most_escalated()
     if len(payload["players"]) < 12:
