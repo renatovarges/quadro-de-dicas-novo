@@ -9,6 +9,7 @@ Os números só são finais com o mercado FECHADO; por isso a captura só é gua
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -105,8 +106,13 @@ def fetch_most_escalated(timeout: int = 30) -> dict:
 
 def fetch_captains(close_timestamp: int | None = None, timeout: int = 30) -> dict | None:
     """Top 5 capitães e top 20 geral (fonte de terceiros), com a idade da foto em relação ao fechamento do mercado."""
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    robot_key = os.environ.get("H2H_ROBO_LEITURA_CHAVE", "").strip()
+    if robot_key:
+        # chave de robô de só leitura criada pelo Daniel: abre apenas esta rota. Nunca é impressa nem gravada.
+        headers["x-robo-leitura"] = robot_key
     try:
-        response = requests.get(H2H_URL, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}, timeout=timeout)
+        response = requests.get(H2H_URL, headers=headers, timeout=timeout)
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError):

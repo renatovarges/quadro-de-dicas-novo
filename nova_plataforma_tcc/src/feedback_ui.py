@@ -42,6 +42,18 @@ def _saved_rounds(remote_config, refresh: bool = False) -> list[int]:
     return st.session_state["fb_saved_rounds"]
 
 
+def _expose_robot_key() -> None:
+    """Disponibiliza a chave de leitura (segredo do Streamlit) para o coletor; nunca é exibida."""
+    import os
+
+    try:
+        key = st.secrets.get("H2H_ROBO_LEITURA_CHAVE")
+        if key and not os.environ.get("H2H_ROBO_LEITURA_CHAVE"):
+            os.environ["H2H_ROBO_LEITURA_CHAVE"] = str(key)
+    except Exception:
+        pass
+
+
 def _stored_access_token(remote_config) -> str | None:
     """Token Globo guardado (se estiver vencido, a busca oficial simplesmente não acontece e o robô completa depois)."""
     try:
@@ -179,6 +191,7 @@ def render_feedback_tab(analyzer, players_by_position, target_round: int, window
         "e gera as artes: um resumo com as seleções e painéis de resultado por posição (em PNG e PDF)."
     )
 
+    _expose_robot_key()
     # arquiva sozinho a pontuação da última rodada finalizada (a API só guarda a mais recente)
     if not st.session_state.get("fb_archived_checked"):
         st.session_state["fb_archived_checked"] = True
